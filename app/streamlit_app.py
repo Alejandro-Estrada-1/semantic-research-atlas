@@ -46,6 +46,8 @@ if "selected_sources" not in st.session_state:
     st.session_state.selected_sources = DEFAULTS["selected_sources"]
 if "view" not in st.session_state:
     st.session_state.view = DEFAULTS["view"]
+if "map_view_key" not in st.session_state:
+    st.session_state.map_view_key = 0
 
 @st.cache_data
 def load_umap(path: str):
@@ -193,6 +195,7 @@ if st.sidebar.button("Reset UI (Master)"):
     st.session_state.selected_faculties = DEFAULTS["selected_faculties"]
     st.session_state.selected_sources = DEFAULTS["selected_sources"]
     st.session_state.view = DEFAULTS["view"]
+    st.session_state.map_view_key += 1
     st.experimental_rerun()
 
 if st.session_state.base_radius_preset in base_radius_map:
@@ -339,7 +342,7 @@ def filter_matches(df):
 
 if view == "UMAP (Pydeck)":
     filtered_umap = apply_filters(umap_df, selected_faculties, selected_sources, year_range)
-    st.pydeck_chart(build_umap_pydeck(filtered_umap, matches, point_opacity, base_radius))
+    st.pydeck_chart(build_umap_pydeck(filtered_umap, matches, point_opacity, base_radius), key=f"umap_chart_{st.session_state.map_view_key}")
     render_top_matches(filter_matches(filtered_umap), filter_matches(filtered_umap).index)
 
 elif view == "SOM (U-Matrix)":
@@ -366,7 +369,10 @@ else:
 
     with left:
         st.subheader("UMAP (Pydeck)")
-        st.pydeck_chart(build_umap_pydeck(filtered_umap, matches, point_opacity, base_radius))
+        st.pydeck_chart(
+            build_umap_pydeck(filtered_umap, matches, point_opacity, base_radius),
+            key=f"umap_chart_{st.session_state.map_view_key}",
+        )
 
     with right:
         st.subheader("SOM U-Matrix")
