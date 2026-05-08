@@ -2,6 +2,9 @@ import os
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import pyarrow as pa
+import pyarrow.ipc as ipc
+import pydeck as pdk
 import faiss
 from sentence_transformers import SentenceTransformer
 
@@ -15,12 +18,18 @@ def load_umap(path: str):
     return pd.read_parquet(path)
 
 @st.cache_data
+def load_umatrix(path: str):
+    return pd.read_parquet(path)
+
+@st.cache_data
 def load_som(path: str):
     return pd.read_parquet(path)
 
 @st.cache_data
-def load_umatrix(path: str):
-    return pd.read_parquet(path)
+def load_arrow(path: str):
+    with ipc.open_file(path) as reader:
+        table = reader.read_all()
+    return table.to_pandas()
 
 @st.cache_resource
 def load_model(model_name: str):
@@ -33,6 +42,7 @@ def load_faiss_index(path: str):
     return faiss.read_index(path)
 
 umap_path = st.sidebar.text_input("UMAP parquet", "data/processed/unam_embeddings_2d.parquet")
+arrow_path = st.sidebar.text_input("UMAP Arrow", "data/processed/unam_embeddings_2d.arrow")
 som_path = st.sidebar.text_input("SOM parquet", "data/processed/som_map.parquet")
 umatrix_path = st.sidebar.text_input(
     "SOM U-Matrix parquet", "data/processed/som_umatrix.parquet"
@@ -42,7 +52,7 @@ model_name = st.sidebar.text_input(
     "Embedding model", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 )
 
-view = st.sidebar.radio("View", ["UMAP", "SOM (U-Matrix)", "Compare"])
+view = st.sidebar.radio("View", ["UMAP (Pydeck)", "SOM (U-Matrix)", "Compare"])
 
 st.sidebar.subheader("Semantic search")
 query = st.sidebar.text_input("Search topic")
@@ -61,23 +71,43 @@ if query:
         matches = idx[0].tolist()
 
 
-def build_umap_figure(df, matches_idx):
-    color_col = "cluster"
+def build_umap_pydeck(df, matches_idx):
     plot_df = df
+    color = [90, 90, 90]
+
     if matches_idx is not None:
         plot_df = df.copy()
-        plot_df["match"] = "Other"
-        plot_df.loc[matches_idx, "match"] = "Match"
-        color_col = "match"
+        plot_df["is_match"] = False
+        plot_df.loc[matches_idx, "is_match"] = True
+        color = None
 
-    return px.scatter(
-        plot_df,
-        x="x",
-        y="y",
-        color=color_col,
-        hover_data=["title", "year", "faculty", "source"],
-        height=650,
-        render_mode="webgl",
+    scatter = pdk.Layer(
+        "ScatterplotLayer",
+        data=plot_df,
+        get_position="[x, y]",
+        get_radius=15,
+        radius_min_pixels=1,
+        radius_max_pixels=6,
+        get_fill_color=("[255, 90, 90]" if matches_idx is not None else color),
+        pickable=True,
+    )
+
+    view_state = pdk.ViewState(
+        longitude=float(plot_df["x"].mean()),
+        latitude=float(plot_df["y"].mean()),
+        zoom=4,
+        min_zoom=1,
+        max_zoom=15,
+    )
+
+    tooltip = {
+        "text": "{title}\n{faculty}\n{year}\n{source}",
+    }
+
+    return pdk.Deck(
+        layers=[scatter],
+        initial_view_state=view_state,
+        tooltip=tooltip,
     )
 
 
@@ -104,34 +134,42 @@ def build_umatrix_figure(umatrix_df, som_df, matches_idx):
     return fig
 
 
-if view == "UMAP":
-    df = load_umap(umap_path)
-    fig = build_umap_figure(df, matches)
-    st.plotly_chart(fig, use_container_width=True)
-
-    if matches is not None:
+def render_top_matches(df, matches_idx):
+    if matches_idx is not None:
         st.subheader("Top matches")
-        st.dataframe(df.loc[matches, ["title", "year", "faculty", "source", "url"]])
+        st.dataframe(df.loc[matches_idx, ["title", "year", "faculty", "source", "url"]])
+
+
+if view == "UMAP (Pydeck)":
+    if os.path.exists(arrow_path):
+        df = load_arrow(arrow_path)
+    else:
+        df = load_umap(umap_path)
+
+    st.pydeck_chart(build_umap_pydeck(df, matches))
+    render_top_matches(df, matches)
 
 elif view == "SOM (U-Matrix)":
     som_df = load_som(som_path)
     umatrix_df = load_umatrix(umatrix_path)
     fig = build_umatrix_figure(umatrix_df, som_df, matches)
     st.plotly_chart(fig, use_container_width=True)
-
-    if matches is not None:
-        st.subheader("Top matches")
-        st.dataframe(som_df.loc[matches, ["title", "year", "faculty", "source", "url"]])
+    render_top_matches(som_df, matches)
 
 else:
     left, right = st.columns(2)
-    umap_df = load_umap(umap_path)
+
+    if os.path.exists(arrow_path):
+        umap_df = load_arrow(arrow_path)
+    else:
+        umap_df = load_umap(umap_path)
+
     som_df = load_som(som_path)
     umatrix_df = load_umatrix(umatrix_path)
 
     with left:
-        st.subheader("UMAP")
-        st.plotly_chart(build_umap_figure(umap_df, matches), use_container_width=True)
+        st.subheader("UMAP (Pydeck)")
+        st.pydeck_chart(build_umap_pydeck(umap_df, matches))
 
     with right:
         st.subheader("SOM U-Matrix")
@@ -140,6 +178,4 @@ else:
             use_container_width=True,
         )
 
-    if matches is not None:
-        st.subheader("Top matches")
-        st.dataframe(umap_df.loc[matches, ["title", "year", "faculty", "source", "url"]])
+    render_top_matches(umap_df, matches)

@@ -1,12 +1,16 @@
 """
 Step 03: UMAP + clustering.
-Outputs data/processed/unam_embeddings_2d.parquet
+Outputs:
+- data/processed/unam_embeddings_2d.parquet
+- data/processed/unam_embeddings_2d.arrow
 """
 import argparse
 import numpy as np
 import pandas as pd
 import umap
 import hdbscan
+import pyarrow as pa
+import pyarrow.ipc as ipc
 from semantic_research_atlas.utils import load_config
 
 
@@ -33,7 +37,14 @@ def main(config_path: str):
 
     out_path = f"{cfg['paths']['processed']}/unam_embeddings_2d.parquet"
     df.to_parquet(out_path, index=False)
+
+    arrow_path = f"{cfg['paths']['processed']}/unam_embeddings_2d.arrow"
+    table = pa.Table.from_pandas(df)
+    with ipc.new_file(arrow_path, table.schema) as writer:
+        writer.write(table)
+
     print(f"Saved: {out_path}")
+    print(f"Saved: {arrow_path}")
 
 
 if __name__ == "__main__":

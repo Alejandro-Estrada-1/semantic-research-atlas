@@ -8,7 +8,7 @@ Semantic clustering and interactive exploration of academic production from UNAM
 - **Clustering** (UMAP + HDBSCAN)
 - **SOM** view (U-Matrix + neuron mapping)
 - **Interactive app** (Streamlit) with:
-  - UMAP map (WebGL)
+  - UMAP map (Pydeck/WebGL + Apache Arrow)
   - SOM U-Matrix
   - Semantic search (FAISS)
   - Compare view (UMAP vs SOM)
@@ -38,7 +38,7 @@ python scripts/01_ingest.py --config config/default.yaml
 ```bash
 python scripts/02_embed.py --config config/default.yaml
 ```
-3. **UMAP + Clustering**
+3. **UMAP + Clustering (Parquet + Arrow)**
 ```bash
 python scripts/03_umap_cluster.py --config config/default.yaml
 ```
@@ -58,12 +58,13 @@ streamlit run app/streamlit_app.py
 
 ## 📦 Output Artifacts
 - `data/processed/unam_embeddings_2d.parquet`
+- `data/processed/unam_embeddings_2d.arrow`
 - `data/processed/som_map.parquet`
 - `data/processed/som_umatrix.parquet`
 - `data/index/index.faiss`
 
 ## 📌 Notes
-- For 300k records, **Parquet + FAISS** is recommended.
+- For 300k records, **Arrow + FAISS** is recommended.
 - For SOM, train on a **subsample (e.g., 50k)** then map the full set.
 
 ## 🔧 Configuration
