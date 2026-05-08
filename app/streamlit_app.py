@@ -88,7 +88,7 @@ def add_density_radius(df: pd.DataFrame, bins: int = 80) -> pd.DataFrame:
     density_df["density_bin"] = list(zip(x_bins, y_bins))
     counts = density_df["density_bin"].value_counts()
     density_df["density_count"] = density_df["density_bin"].map(counts).fillna(1)
-    density_df["radius"] = density_df["density_count"].clip(1, 50)
+    density_df["radius"] = density_df["density_count"].clip(1, 50).pow(0.5)
     return density_df
 
 
@@ -117,6 +117,7 @@ top_k = st.sidebar.slider("Top K", min_value=5, max_value=100, value=20, step=5)
 
 st.sidebar.subheader("Map settings")
 point_opacity = st.sidebar.slider("Point opacity", 0.1, 1.0, 0.7, 0.05)
+base_radius = st.sidebar.slider("Base radius", 1.0, 8.0, 3.0, 0.5)
 show_legend = st.sidebar.checkbox("Show faculty legend", value=True)
 match_mode = st.sidebar.radio(
     "Match mode",
@@ -174,7 +175,7 @@ if show_legend and faculty_options:
     st.sidebar.markdown("".join(legend_rows), unsafe_allow_html=True)
 
 
-def build_umap_pydeck(df, matches_idx, opacity_value: float):
+def build_umap_pydeck(df, matches_idx, opacity_value: float, radius_scale: float):
     plot_df = df.copy()
     alpha = int(255 * opacity_value)
 
@@ -203,8 +204,10 @@ def build_umap_pydeck(df, matches_idx, opacity_value: float):
         data=plot_df,
         get_position="[x, y]",
         get_radius="radius",
+        radius_scale=radius_scale,
         radius_min_pixels=1,
-        radius_max_pixels=10,
+        radius_max_pixels=12,
+        radius_units="meters",
         get_fill_color="color",
         get_line_color="line_color",
         get_line_width="line_width",
@@ -261,7 +264,7 @@ def filter_matches(df):
 
 if view == "UMAP (Pydeck)":
     filtered_umap = apply_filters(umap_df, selected_faculties, selected_sources, year_range)
-    st.pydeck_chart(build_umap_pydeck(filtered_umap, matches, point_opacity))
+    st.pydeck_chart(build_umap_pydeck(filtered_umap, matches, point_opacity, base_radius))
     render_top_matches(filter_matches(filtered_umap), filter_matches(filtered_umap).index)
 
 elif view == "SOM (U-Matrix)":
@@ -288,7 +291,7 @@ else:
 
     with left:
         st.subheader("UMAP (Pydeck)")
-        st.pydeck_chart(build_umap_pydeck(filtered_umap, matches, point_opacity))
+        st.pydeck_chart(build_umap_pydeck(filtered_umap, matches, point_opacity, base_radius))
 
     with right:
         st.subheader("SOM U-Matrix")
