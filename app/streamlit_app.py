@@ -23,6 +23,7 @@ DEFAULTS = {
     "selected_faculties": [],
     "selected_sources": [],
     "year_range": None,
+    "view": "UMAP (Pydeck)",
 }
 
 if "point_opacity" not in st.session_state:
@@ -43,6 +44,8 @@ if "selected_faculties" not in st.session_state:
     st.session_state.selected_faculties = DEFAULTS["selected_faculties"]
 if "selected_sources" not in st.session_state:
     st.session_state.selected_sources = DEFAULTS["selected_sources"]
+if "view" not in st.session_state:
+    st.session_state.view = DEFAULTS["view"]
 
 @st.cache_data
 def load_umap(path: str):
@@ -141,7 +144,13 @@ model_name = st.sidebar.text_input(
     "Embedding model", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 )
 
-view = st.sidebar.radio("View", ["UMAP (Pydeck)", "SOM (U-Matrix)", "Compare"])
+view_options = ["UMAP (Pydeck)", "SOM (U-Matrix)", "Compare"]
+view = st.sidebar.radio(
+    "View",
+    view_options,
+    index=view_options.index(st.session_state.view),
+    key="view",
+)
 
 st.sidebar.subheader("Semantic search")
 query = st.sidebar.text_input("Search topic", key="query")
@@ -183,6 +192,7 @@ if st.sidebar.button("Reset UI (Master)"):
     st.session_state.top_k = DEFAULTS["top_k"]
     st.session_state.selected_faculties = DEFAULTS["selected_faculties"]
     st.session_state.selected_sources = DEFAULTS["selected_sources"]
+    st.session_state.view = DEFAULTS["view"]
     st.experimental_rerun()
 
 if st.session_state.base_radius_preset in base_radius_map:
