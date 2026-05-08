@@ -104,6 +104,10 @@ st.sidebar.subheader("Semantic search")
 query = st.sidebar.text_input("Search topic")
 top_k = st.sidebar.slider("Top K", min_value=5, max_value=100, value=20, step=5)
 
+st.sidebar.subheader("Map settings")
+point_opacity = st.sidebar.slider("Point opacity", 0.1, 1.0, 0.7, 0.05)
+show_legend = st.sidebar.checkbox("Show faculty legend", value=True)
+
 matches = None
 if query:
     index = load_faiss_index(index_path)
@@ -138,10 +142,28 @@ match_set = set(matches) if matches is not None else set()
 
 faculty_palette = build_faculty_palette(faculty_options)
 
+if show_legend and faculty_options:
+    legend_rows = []
+    for faculty in faculty_options:
+        color = faculty_palette.get(faculty, [120, 120, 120])
+        legend_rows.append(
+            f"""
+            <div style='display:flex;align-items:center;margin-bottom:4px;'>
+                <div style='width:12px;height:12px;background-color:rgb({color[0]},{color[1]},{color[2]});margin-right:6px;border:1px solid #555;'></div>
+                <span style='font-size:12px;'>{faculty}</span>
+            </div>
+            """
+        )
+    st.sidebar.markdown("".join(legend_rows), unsafe_allow_html=True)
 
-def build_umap_pydeck(df, matches_idx):
+
+def build_umap_pydeck(df, matches_idx, opacity_value: float):
     plot_df = df.copy()
+    alpha = int(255 * opacity_value)
+
     plot_df["color"] = plot_df["faculty"].map(faculty_palette).fillna([120, 120, 120])
+    plot_df["color"] = plot_df["color"].apply(lambda c: [c[0], c[1], c[2], alpha])
+
     plot_df["is_match"] = plot_df["row_id"].isin(match_set)
     plot_df["line_color"] = plot_df["is_match"].apply(lambda v: [255, 0, 0] if v else [0, 0, 0])
     plot_df["line_width"] = plot_df["is_match"].apply(lambda v: 3 if v else 0)
@@ -209,7 +231,7 @@ def filter_matches(df):
 
 if view == "UMAP (Pydeck)":
     filtered_umap = apply_filters(umap_df, selected_faculties, selected_sources, year_range)
-    st.pydeck_chart(build_umap_pydeck(filtered_umap, matches))
+    st.pydeck_chart(build_umap_pydeck(filtered_umap, matches, point_opacity))
     render_top_matches(filter_matches(filtered_umap), filter_matches(filtered_umap).index)
 
 elif view == "SOM (U-Matrix)":
@@ -236,7 +258,7 @@ else:
 
     with left:
         st.subheader("UMAP (Pydeck)")
-        st.pydeck_chart(build_umap_pydeck(filtered_umap, matches))
+        st.pydeck_chart(build_umap_pydeck(filtered_umap, matches, point_opacity))
 
     with right:
         st.subheader("SOM U-Matrix")
