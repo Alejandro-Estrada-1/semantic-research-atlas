@@ -1,0 +1,38 @@
+sources:
+  unam_repository:
+    enabled: true
+    base_url: "https://repositorio.unam.mx/"
+    harvest_method: "oai_pmh"  # placeholder
+  openalex:
+    enabled: true
+    base_url: "https://api.openalex.org"
+  scielo:
+    enabled: true
+    base_url: "https://scielo.org"
+
+paths:
+  raw: "data/raw"
+  processed: "data/processed"
+  index: "data/index"
+
+embeddings:
+  model_name: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+  batch_size: 64
+
+umap:
+  n_neighbors: 30
+  min_dist: 0.05
+  n_components: 2
+  metric: "cosine"
+
+clustering:
+  method: "hdbscan"
+  min_cluster_size: 30
+
+som:
+  enabled: true
+  grid_x: 30
+  grid_y: 20
+  sigma: 1.5
+  learning_rate: 0.5
+  train_sample_size: 50000
