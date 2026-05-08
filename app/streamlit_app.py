@@ -49,6 +49,8 @@ if "view" not in st.session_state:
 if "map_view_key" not in st.session_state:
     st.session_state.map_view_key = 0
 
+BASE_RADIUS_MAP = {"Low": 2.0, "Medium": 3.0, "High": 5.0}
+
 @st.cache_data
 def load_umap(path: str):
     return pd.read_parquet(path)
@@ -135,6 +137,12 @@ def render_top_matches(df, matches_idx):
         st.dataframe(df.loc[matches_idx, ["title", "year", "faculty", "source", "url"]])
 
 
+def on_radius_preset_change():
+    preset = st.session_state.base_radius_preset
+    if preset in BASE_RADIUS_MAP:
+        st.session_state.base_radius = BASE_RADIUS_MAP[preset]
+
+
 umap_path = st.sidebar.text_input("UMAP parquet", "data/processed/unam_embeddings_2d.parquet")
 arrow_path = st.sidebar.text_input("UMAP Arrow", "data/processed/unam_embeddings_2d.arrow")
 som_path = st.sidebar.text_input("SOM parquet", "data/processed/som_map.parquet")
@@ -165,8 +173,8 @@ base_radius_preset = st.sidebar.selectbox(
     ["Low", "Medium", "High"],
     index=["Low", "Medium", "High"].index(st.session_state.base_radius_preset),
     key="base_radius_preset",
+    on_change=on_radius_preset_change,
 )
-base_radius_map = {"Low": 2.0, "Medium": 3.0, "High": 5.0}
 base_radius = st.sidebar.slider(
     "Base radius (advanced)",
     1.0,
@@ -197,9 +205,6 @@ if st.sidebar.button("Reset UI (Master)"):
     st.session_state.view = DEFAULTS["view"]
     st.session_state.map_view_key += 1
     st.experimental_rerun()
-
-if st.session_state.base_radius_preset in base_radius_map:
-    st.session_state.base_radius = base_radius_map[st.session_state.base_radius_preset]
 
 matches = None
 if query:
