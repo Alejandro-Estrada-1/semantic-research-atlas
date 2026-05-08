@@ -1,14 +1,21 @@
 sources:
   unam_repository:
     enabled: true
-    base_url: "https://repositorio.unam.mx/"
-    harvest_method: "oai_pmh"  # placeholder
+    base_url: "https://repositorio.unam.mx/oai/request"
+    metadata_prefix: "oai_dc"
   openalex:
     enabled: true
     base_url: "https://api.openalex.org"
+    ror_id: "01tmp8f25"
+    per_page: 200
   scielo:
     enabled: true
-    base_url: "https://scielo.org"
+    base_url: "https://www.scielo.org.mx/oai/scielo-oai.php"
+    metadata_prefix: "oai_dc"
+
+ingest:
+  max_records_per_source: 0  # 0 = no limit
+  polite_pause_seconds: 0.2
 
 paths:
   raw: "data/raw"
