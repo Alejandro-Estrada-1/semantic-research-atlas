@@ -12,6 +12,38 @@ st.set_page_config(page_title="Semantic Research Atlas", layout="wide")
 st.title("Semantic Research Atlas")
 st.caption("UMAP + SOM exploration with semantic search")
 
+DEFAULTS = {
+    "point_opacity": 0.7,
+    "base_radius": 3.0,
+    "base_radius_preset": "Medium",
+    "show_legend": True,
+    "match_mode": "Context",
+    "query": "",
+    "top_k": 20,
+    "selected_faculties": [],
+    "selected_sources": [],
+    "year_range": None,
+}
+
+if "point_opacity" not in st.session_state:
+    st.session_state.point_opacity = DEFAULTS["point_opacity"]
+if "base_radius" not in st.session_state:
+    st.session_state.base_radius = DEFAULTS["base_radius"]
+if "base_radius_preset" not in st.session_state:
+    st.session_state.base_radius_preset = DEFAULTS["base_radius_preset"]
+if "show_legend" not in st.session_state:
+    st.session_state.show_legend = DEFAULTS["show_legend"]
+if "match_mode" not in st.session_state:
+    st.session_state.match_mode = DEFAULTS["match_mode"]
+if "query" not in st.session_state:
+    st.session_state.query = DEFAULTS["query"]
+if "top_k" not in st.session_state:
+    st.session_state.top_k = DEFAULTS["top_k"]
+if "selected_faculties" not in st.session_state:
+    st.session_state.selected_faculties = DEFAULTS["selected_faculties"]
+if "selected_sources" not in st.session_state:
+    st.session_state.selected_sources = DEFAULTS["selected_sources"]
+
 @st.cache_data
 def load_umap(path: str):
     return pd.read_parquet(path)
@@ -112,27 +144,49 @@ model_name = st.sidebar.text_input(
 view = st.sidebar.radio("View", ["UMAP (Pydeck)", "SOM (U-Matrix)", "Compare"])
 
 st.sidebar.subheader("Semantic search")
-query = st.sidebar.text_input("Search topic")
-top_k = st.sidebar.slider("Top K", min_value=5, max_value=100, value=20, step=5)
+query = st.sidebar.text_input("Search topic", key="query")
+top_k = st.sidebar.slider("Top K", min_value=5, max_value=100, value=st.session_state.top_k, step=5, key="top_k")
 
 st.sidebar.subheader("Map settings")
-point_opacity = st.sidebar.slider("Point opacity", 0.1, 1.0, 0.7, 0.05)
-base_radius_preset = st.sidebar.selectbox("Base radius preset", ["Low", "Medium", "High"], index=1)
+point_opacity = st.sidebar.slider("Point opacity", 0.1, 1.0, st.session_state.point_opacity, 0.05, key="point_opacity")
+base_radius_preset = st.sidebar.selectbox(
+    "Base radius preset",
+    ["Low", "Medium", "High"],
+    index=["Low", "Medium", "High"].index(st.session_state.base_radius_preset),
+    key="base_radius_preset",
+)
 base_radius_map = {"Low": 2.0, "Medium": 3.0, "High": 5.0}
 base_radius = st.sidebar.slider(
-    "Base radius",
+    "Base radius (advanced)",
     1.0,
     8.0,
-    base_radius_map[base_radius_preset],
+    st.session_state.base_radius,
     0.5,
+    key="base_radius",
 )
-show_legend = st.sidebar.checkbox("Show faculty legend", value=True)
+show_legend = st.sidebar.checkbox("Show faculty legend", value=st.session_state.show_legend, key="show_legend")
 match_mode = st.sidebar.radio(
     "Match mode",
     ["Context", "Only matches"],
-    index=0,
+    index=["Context", "Only matches"].index(st.session_state.match_mode),
+    key="match_mode",
     help="Context keeps background points translucent. Only matches hides the rest.",
 )
+
+if st.sidebar.button("Reset UI (Master)"):
+    st.session_state.point_opacity = DEFAULTS["point_opacity"]
+    st.session_state.base_radius = DEFAULTS["base_radius"]
+    st.session_state.base_radius_preset = DEFAULTS["base_radius_preset"]
+    st.session_state.show_legend = DEFAULTS["show_legend"]
+    st.session_state.match_mode = DEFAULTS["match_mode"]
+    st.session_state.query = DEFAULTS["query"]
+    st.session_state.top_k = DEFAULTS["top_k"]
+    st.session_state.selected_faculties = DEFAULTS["selected_faculties"]
+    st.session_state.selected_sources = DEFAULTS["selected_sources"]
+    st.experimental_rerun()
+
+if st.session_state.base_radius_preset in base_radius_map:
+    st.session_state.base_radius = base_radius_map[st.session_state.base_radius_preset]
 
 matches = None
 if query:
@@ -155,14 +209,17 @@ faculty_options = sorted(umap_df["faculty"].dropna().unique().tolist())
 source_options = sorted(umap_df["source"].dropna().unique().tolist())
 
 st.sidebar.subheader("Filters")
-selected_faculties = st.sidebar.multiselect("Faculty", faculty_options)
-selected_sources = st.sidebar.multiselect("Source", source_options)
+selected_faculties = st.sidebar.multiselect("Faculty", faculty_options, default=st.session_state.selected_faculties, key="selected_faculties")
+selected_sources = st.sidebar.multiselect("Source", source_options, default=st.session_state.selected_sources, key="selected_sources")
 
 year_range = None
 if "year" in umap_df.columns and not umap_df["year"].dropna().empty:
     year_min = int(umap_df["year"].min())
     year_max = int(umap_df["year"].max())
-    year_range = st.sidebar.slider("Year range", year_min, year_max, (year_min, year_max))
+    default_years = (year_min, year_max)
+    if st.session_state.year_range is not None:
+        default_years = st.session_state.year_range
+    year_range = st.sidebar.slider("Year range", year_min, year_max, default_years, key="year_range")
 
 match_set = set(matches) if matches is not None else set()
 
