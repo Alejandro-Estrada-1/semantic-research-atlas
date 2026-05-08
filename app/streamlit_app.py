@@ -12,6 +12,25 @@ st.set_page_config(page_title="Semantic Research Atlas", layout="wide")
 st.title("Semantic Research Atlas")
 st.caption("UMAP + SOM exploration with semantic search")
 
+DEFAULTS = {
+    "point_opacity": 0.7,
+    "base_radius": 3.0,
+    "radius_preset": "Medium",
+    "show_legend": True,
+    "match_mode": "Context",
+}
+
+if "point_opacity" not in st.session_state:
+    st.session_state.point_opacity = DEFAULTS["point_opacity"]
+if "base_radius" not in st.session_state:
+    st.session_state.base_radius = DEFAULTS["base_radius"]
+if "radius_preset" not in st.session_state:
+    st.session_state.radius_preset = DEFAULTS["radius_preset"]
+if "show_legend" not in st.session_state:
+    st.session_state.show_legend = DEFAULTS["show_legend"]
+if "match_mode" not in st.session_state:
+    st.session_state.match_mode = DEFAULTS["match_mode"]
+
 @st.cache_data
 def load_umap(path: str):
     return pd.read_parquet(path)
@@ -116,15 +135,56 @@ query = st.sidebar.text_input("Search topic")
 top_k = st.sidebar.slider("Top K", min_value=5, max_value=100, value=20, step=5)
 
 st.sidebar.subheader("Map settings")
-point_opacity = st.sidebar.slider("Point opacity", 0.1, 1.0, 0.7, 0.05)
-base_radius = st.sidebar.slider("Base radius", 1.0, 8.0, 3.0, 0.5)
-show_legend = st.sidebar.checkbox("Show faculty legend", value=True)
+point_opacity = st.sidebar.slider(
+    "Point opacity",
+    0.1,
+    1.0,
+    st.session_state.point_opacity,
+    0.05,
+    key="point_opacity",
+)
+
+radius_preset = st.sidebar.radio(
+    "Radius preset",
+    ["Low", "Medium", "High"],
+    index=["Low", "Medium", "High"].index(st.session_state.radius_preset),
+    key="radius_preset",
+)
+
+preset_map = {"Low": 2.0, "Medium": 3.0, "High": 4.5}
+if st.session_state.radius_preset in preset_map:
+    st.session_state.base_radius = preset_map[st.session_state.radius_preset]
+
+base_radius = st.sidebar.slider(
+    "Base radius (advanced)",
+    1.0,
+    8.0,
+    st.session_state.base_radius,
+    0.5,
+    key="base_radius",
+)
+
+show_legend = st.sidebar.checkbox(
+    "Show faculty legend",
+    value=st.session_state.show_legend,
+    key="show_legend",
+)
+
 match_mode = st.sidebar.radio(
     "Match mode",
     ["Context", "Only matches"],
-    index=0,
+    index=["Context", "Only matches"].index(st.session_state.match_mode),
+    key="match_mode",
     help="Context keeps background points translucent. Only matches hides the rest.",
 )
+
+if st.sidebar.button("Reset UI"):
+    st.session_state.point_opacity = DEFAULTS["point_opacity"]
+    st.session_state.base_radius = DEFAULTS["base_radius"]
+    st.session_state.radius_preset = DEFAULTS["radius_preset"]
+    st.session_state.show_legend = DEFAULTS["show_legend"]
+    st.session_state.match_mode = DEFAULTS["match_mode"]
+    st.experimental_rerun()
 
 matches = None
 if query:
