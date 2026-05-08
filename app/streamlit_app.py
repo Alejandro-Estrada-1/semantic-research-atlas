@@ -2,7 +2,6 @@ import os
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import pyarrow as pa
 import pyarrow.ipc as ipc
 import pydeck as pdk
 import faiss
@@ -41,6 +40,53 @@ def load_faiss_index(path: str):
         return None
     return faiss.read_index(path)
 
+
+def load_umap_data(arrow_path: str, parquet_path: str) -> pd.DataFrame:
+    if os.path.exists(arrow_path):
+        return load_arrow(arrow_path)
+    return load_umap(parquet_path)
+
+
+def apply_filters(df: pd.DataFrame, faculties, sources, year_range):
+    filtered = df.copy()
+
+    if faculties:
+        filtered = filtered[filtered["faculty"].isin(faculties)]
+    if sources:
+        filtered = filtered[filtered["source"].isin(sources)]
+    if year_range and "year" in filtered.columns:
+        filtered = filtered[filtered["year"].between(year_range[0], year_range[1])]
+
+    return filtered
+
+
+def build_faculty_palette(values):
+    palette = [
+        [141, 211, 199],
+        [255, 255, 179],
+        [190, 186, 218],
+        [251, 128, 114],
+        [128, 177, 211],
+        [253, 180, 98],
+        [179, 222, 105],
+        [252, 205, 229],
+        [217, 217, 217],
+        [188, 128, 189],
+        [204, 235, 197],
+        [255, 237, 111],
+    ]
+    mapping = {}
+    for idx, val in enumerate(values):
+        mapping[val] = palette[idx % len(palette)]
+    return mapping
+
+
+def render_top_matches(df, matches_idx):
+    if matches_idx is not None:
+        st.subheader("Top matches")
+        st.dataframe(df.loc[matches_idx, ["title", "year", "faculty", "source", "url"]])
+
+
 umap_path = st.sidebar.text_input("UMAP parquet", "data/processed/unam_embeddings_2d.parquet")
 arrow_path = st.sidebar.text_input("UMAP Arrow", "data/processed/unam_embeddings_2d.arrow")
 som_path = st.sidebar.text_input("SOM parquet", "data/processed/som_map.parquet")
@@ -71,15 +117,34 @@ if query:
         matches = idx[0].tolist()
 
 
-def build_umap_pydeck(df, matches_idx):
-    plot_df = df
-    color = [90, 90, 90]
+umap_df = load_umap_data(arrow_path, umap_path)
+umap_df = umap_df.reset_index(drop=True)
+umap_df["row_id"] = umap_df.index
 
-    if matches_idx is not None:
-        plot_df = df.copy()
-        plot_df["is_match"] = False
-        plot_df.loc[matches_idx, "is_match"] = True
-        color = None
+faculty_options = sorted(umap_df["faculty"].dropna().unique().tolist())
+source_options = sorted(umap_df["source"].dropna().unique().tolist())
+
+st.sidebar.subheader("Filters")
+selected_faculties = st.sidebar.multiselect("Faculty", faculty_options)
+selected_sources = st.sidebar.multiselect("Source", source_options)
+
+year_range = None
+if "year" in umap_df.columns and not umap_df["year"].dropna().empty:
+    year_min = int(umap_df["year"].min())
+    year_max = int(umap_df["year"].max())
+    year_range = st.sidebar.slider("Year range", year_min, year_max, (year_min, year_max))
+
+match_set = set(matches) if matches is not None else set()
+
+faculty_palette = build_faculty_palette(faculty_options)
+
+
+def build_umap_pydeck(df, matches_idx):
+    plot_df = df.copy()
+    plot_df["color"] = plot_df["faculty"].map(faculty_palette).fillna([120, 120, 120])
+    plot_df["is_match"] = plot_df["row_id"].isin(match_set)
+    plot_df["line_color"] = plot_df["is_match"].apply(lambda v: [255, 0, 0] if v else [0, 0, 0])
+    plot_df["line_width"] = plot_df["is_match"].apply(lambda v: 3 if v else 0)
 
     scatter = pdk.Layer(
         "ScatterplotLayer",
@@ -88,7 +153,9 @@ def build_umap_pydeck(df, matches_idx):
         get_radius=15,
         radius_min_pixels=1,
         radius_max_pixels=6,
-        get_fill_color=("[255, 90, 90]" if matches_idx is not None else color),
+        get_fill_color="color",
+        get_line_color="line_color",
+        get_line_width="line_width",
         pickable=True,
     )
 
@@ -122,7 +189,7 @@ def build_umatrix_figure(umatrix_df, som_df, matches_idx):
     )
 
     if matches_idx is not None:
-        som_matches = som_df.loc[matches_idx]
+        som_matches = som_df[som_df["row_id"].isin(match_set)]
         fig.add_scatter(
             x=som_matches["som_x"],
             y=som_matches["som_y"],
@@ -134,42 +201,42 @@ def build_umatrix_figure(umatrix_df, som_df, matches_idx):
     return fig
 
 
-def render_top_matches(df, matches_idx):
-    if matches_idx is not None:
-        st.subheader("Top matches")
-        st.dataframe(df.loc[matches_idx, ["title", "year", "faculty", "source", "url"]])
+def filter_matches(df):
+    if matches is None:
+        return df
+    return df[df["row_id"].isin(match_set)]
 
 
 if view == "UMAP (Pydeck)":
-    if os.path.exists(arrow_path):
-        df = load_arrow(arrow_path)
-    else:
-        df = load_umap(umap_path)
-
-    st.pydeck_chart(build_umap_pydeck(df, matches))
-    render_top_matches(df, matches)
+    filtered_umap = apply_filters(umap_df, selected_faculties, selected_sources, year_range)
+    st.pydeck_chart(build_umap_pydeck(filtered_umap, matches))
+    render_top_matches(filter_matches(filtered_umap), filter_matches(filtered_umap).index)
 
 elif view == "SOM (U-Matrix)":
-    som_df = load_som(som_path)
+    som_df = load_som(som_path).reset_index(drop=True)
+    som_df["row_id"] = som_df.index
+    som_df = apply_filters(som_df, selected_faculties, selected_sources, year_range)
+
     umatrix_df = load_umatrix(umatrix_path)
     fig = build_umatrix_figure(umatrix_df, som_df, matches)
     st.plotly_chart(fig, use_container_width=True)
-    render_top_matches(som_df, matches)
+
+    render_top_matches(filter_matches(som_df), filter_matches(som_df).index)
 
 else:
     left, right = st.columns(2)
 
-    if os.path.exists(arrow_path):
-        umap_df = load_arrow(arrow_path)
-    else:
-        umap_df = load_umap(umap_path)
+    filtered_umap = apply_filters(umap_df, selected_faculties, selected_sources, year_range)
 
-    som_df = load_som(som_path)
+    som_df = load_som(som_path).reset_index(drop=True)
+    som_df["row_id"] = som_df.index
+    som_df = apply_filters(som_df, selected_faculties, selected_sources, year_range)
+
     umatrix_df = load_umatrix(umatrix_path)
 
     with left:
         st.subheader("UMAP (Pydeck)")
-        st.pydeck_chart(build_umap_pydeck(umap_df, matches))
+        st.pydeck_chart(build_umap_pydeck(filtered_umap, matches))
 
     with right:
         st.subheader("SOM U-Matrix")
@@ -178,4 +245,4 @@ else:
             use_container_width=True,
         )
 
-    render_top_matches(umap_df, matches)
+    render_top_matches(filter_matches(filtered_umap), filter_matches(filtered_umap).index)
