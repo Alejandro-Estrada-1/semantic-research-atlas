@@ -9,8 +9,9 @@ Semantic clustering and interactive exploration of academic production from UNAM
 - **SOM** view (U-Matrix + neuron mapping)
 - **Interactive app** (Streamlit) with:
   - UMAP map (WebGL)
-  - SOM grid view
+  - SOM U-Matrix
   - Semantic search (FAISS)
+  - Compare view (UMAP vs SOM)
 
 ## 📁 Repository Structure
 ```
@@ -58,6 +59,7 @@ streamlit run app/streamlit_app.py
 ## 📦 Output Artifacts
 - `data/processed/unam_embeddings_2d.parquet`
 - `data/processed/som_map.parquet`
+- `data/processed/som_umatrix.parquet`
 - `data/index/index.faiss`
 
 ## 📌 Notes

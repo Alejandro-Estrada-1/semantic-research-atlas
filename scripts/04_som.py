@@ -1,6 +1,8 @@
 """
 Step 04: SOM training and mapping.
-Outputs data/processed/som_map.parquet
+Outputs:
+- data/processed/som_map.parquet
+- data/processed/som_umatrix.parquet
 """
 import argparse
 import numpy as np
@@ -38,6 +40,18 @@ def main(config_path: str):
     out_path = f"{cfg['paths']['processed']}/som_map.parquet"
     df.to_parquet(out_path, index=False)
     print(f"Saved: {out_path}")
+
+    # U-Matrix
+    umatrix = som.distance_map()
+    umatrix_records = [
+        {"som_x": x, "som_y": y, "distance": float(umatrix[x, y])}
+        for x in range(umatrix.shape[0])
+        for y in range(umatrix.shape[1])
+    ]
+    umatrix_df = pd.DataFrame(umatrix_records)
+    umatrix_path = f"{cfg['paths']['processed']}/som_umatrix.parquet"
+    umatrix_df.to_parquet(umatrix_path, index=False)
+    print(f"Saved: {umatrix_path}")
 
 
 if __name__ == "__main__":

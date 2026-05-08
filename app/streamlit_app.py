@@ -1,7 +1,6 @@
 import os
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px
 import faiss
 from sentence_transformers import SentenceTransformer
@@ -19,6 +18,10 @@ def load_umap(path: str):
 def load_som(path: str):
     return pd.read_parquet(path)
 
+@st.cache_data
+def load_umatrix(path: str):
+    return pd.read_parquet(path)
+
 @st.cache_resource
 def load_model(model_name: str):
     return SentenceTransformer(model_name)
@@ -31,12 +34,15 @@ def load_faiss_index(path: str):
 
 umap_path = st.sidebar.text_input("UMAP parquet", "data/processed/unam_embeddings_2d.parquet")
 som_path = st.sidebar.text_input("SOM parquet", "data/processed/som_map.parquet")
+umatrix_path = st.sidebar.text_input(
+    "SOM U-Matrix parquet", "data/processed/som_umatrix.parquet"
+)
 index_path = st.sidebar.text_input("FAISS index", "data/index/index.faiss")
 model_name = st.sidebar.text_input(
     "Embedding model", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 )
 
-view = st.sidebar.radio("View", ["UMAP", "SOM"])
+view = st.sidebar.radio("View", ["UMAP", "SOM (U-Matrix)", "Compare"])
 
 st.sidebar.subheader("Semantic search")
 query = st.sidebar.text_input("Search topic")
@@ -54,41 +60,39 @@ if query:
         _, idx = index.search(q_emb, top_k)
         matches = idx[0].tolist()
 
-if view == "UMAP":
-    df = load_umap(umap_path)
-    color_col = "cluster"
 
-    if matches is not None:
-        df = df.copy()
-        df["match"] = "Other"
-        df.loc[matches, "match"] = "Match"
+def build_umap_figure(df, matches_idx):
+    color_col = "cluster"
+    plot_df = df
+    if matches_idx is not None:
+        plot_df = df.copy()
+        plot_df["match"] = "Other"
+        plot_df.loc[matches_idx, "match"] = "Match"
         color_col = "match"
 
-    fig = px.scatter(
-        df,
+    return px.scatter(
+        plot_df,
         x="x",
         y="y",
         color=color_col,
         hover_data=["title", "year", "faculty", "source"],
-        height=700,
+        height=650,
         render_mode="webgl",
     )
-    st.plotly_chart(fig, use_container_width=True)
 
-    if matches is not None:
-        st.subheader("Top matches")
-        st.dataframe(df.loc[matches, ["title", "year", "faculty", "source", "url"]])
-else:
-    df = load_som(som_path)
-    fig = px.density_heatmap(
-        df,
-        x="som_x",
-        y="som_y",
-        height=700,
+
+def build_umatrix_figure(umatrix_df, som_df, matches_idx):
+    pivot = umatrix_df.pivot(index="som_y", columns="som_x", values="distance")
+    fig = px.imshow(
+        pivot,
+        origin="lower",
+        aspect="auto",
+        color_continuous_scale="Viridis",
+        height=650,
     )
 
-    if matches is not None:
-        som_matches = df.loc[matches]
+    if matches_idx is not None:
+        som_matches = som_df.loc[matches_idx]
         fig.add_scatter(
             x=som_matches["som_x"],
             y=som_matches["som_y"],
@@ -97,8 +101,45 @@ else:
             name="Match",
         )
 
+    return fig
+
+
+if view == "UMAP":
+    df = load_umap(umap_path)
+    fig = build_umap_figure(df, matches)
     st.plotly_chart(fig, use_container_width=True)
 
     if matches is not None:
         st.subheader("Top matches")
         st.dataframe(df.loc[matches, ["title", "year", "faculty", "source", "url"]])
+
+elif view == "SOM (U-Matrix)":
+    som_df = load_som(som_path)
+    umatrix_df = load_umatrix(umatrix_path)
+    fig = build_umatrix_figure(umatrix_df, som_df, matches)
+    st.plotly_chart(fig, use_container_width=True)
+
+    if matches is not None:
+        st.subheader("Top matches")
+        st.dataframe(som_df.loc[matches, ["title", "year", "faculty", "source", "url"]])
+
+else:
+    left, right = st.columns(2)
+    umap_df = load_umap(umap_path)
+    som_df = load_som(som_path)
+    umatrix_df = load_umatrix(umatrix_path)
+
+    with left:
+        st.subheader("UMAP")
+        st.plotly_chart(build_umap_figure(umap_df, matches), use_container_width=True)
+
+    with right:
+        st.subheader("SOM U-Matrix")
+        st.plotly_chart(
+            build_umatrix_figure(umatrix_df, som_df, matches),
+            use_container_width=True,
+        )
+
+    if matches is not None:
+        st.subheader("Top matches")
+        st.dataframe(umap_df.loc[matches, ["title", "year", "faculty", "source", "url"]])
