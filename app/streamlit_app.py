@@ -81,6 +81,17 @@ def build_faculty_palette(values):
     return mapping
 
 
+def add_density_radius(df: pd.DataFrame, bins: int = 80) -> pd.DataFrame:
+    density_df = df.copy()
+    x_bins = pd.cut(density_df["x"], bins=bins, labels=False, include_lowest=True)
+    y_bins = pd.cut(density_df["y"], bins=bins, labels=False, include_lowest=True)
+    density_df["density_bin"] = list(zip(x_bins, y_bins))
+    counts = density_df["density_bin"].value_counts()
+    density_df["density_count"] = density_df["density_bin"].map(counts).fillna(1)
+    density_df["radius"] = density_df["density_count"].clip(1, 50)
+    return density_df
+
+
 def render_top_matches(df, matches_idx):
     if matches_idx is not None:
         st.subheader("Top matches")
@@ -107,6 +118,12 @@ top_k = st.sidebar.slider("Top K", min_value=5, max_value=100, value=20, step=5)
 st.sidebar.subheader("Map settings")
 point_opacity = st.sidebar.slider("Point opacity", 0.1, 1.0, 0.7, 0.05)
 show_legend = st.sidebar.checkbox("Show faculty legend", value=True)
+match_mode = st.sidebar.radio(
+    "Match mode",
+    ["Context", "Only matches"],
+    index=0,
+    help="Context keeps background points translucent. Only matches hides the rest.",
+)
 
 matches = None
 if query:
@@ -168,13 +185,26 @@ def build_umap_pydeck(df, matches_idx, opacity_value: float):
     plot_df["line_color"] = plot_df["is_match"].apply(lambda v: [255, 0, 0] if v else [0, 0, 0])
     plot_df["line_width"] = plot_df["is_match"].apply(lambda v: 3 if v else 0)
 
+    if matches_idx is not None:
+        if match_mode == "Context":
+            plot_df.loc[plot_df["is_match"], "color"] = plot_df.loc[plot_df["is_match"], "color"].apply(
+                lambda c: [255, 70, 70, 255]
+            )
+            plot_df.loc[~plot_df["is_match"], "color"] = plot_df.loc[~plot_df["is_match"], "color"].apply(
+                lambda c: [c[0], c[1], c[2], int(255 * 0.15)]
+            )
+        else:
+            plot_df = plot_df[plot_df["is_match"]]
+
+    plot_df = add_density_radius(plot_df)
+
     scatter = pdk.Layer(
         "ScatterplotLayer",
         data=plot_df,
         get_position="[x, y]",
-        get_radius=15,
+        get_radius="radius",
         radius_min_pixels=1,
-        radius_max_pixels=6,
+        radius_max_pixels=10,
         get_fill_color="color",
         get_line_color="line_color",
         get_line_width="line_width",
@@ -182,8 +212,8 @@ def build_umap_pydeck(df, matches_idx, opacity_value: float):
     )
 
     view_state = pdk.ViewState(
-        longitude=float(plot_df["x"].mean()),
-        latitude=float(plot_df["y"].mean()),
+        longitude=float(plot_df["x"].mean()) if not plot_df.empty else 0.0,
+        latitude=float(plot_df["y"].mean()) if not plot_df.empty else 0.0,
         zoom=4,
         min_zoom=1,
         max_zoom=15,
