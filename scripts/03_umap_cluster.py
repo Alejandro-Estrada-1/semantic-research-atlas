@@ -19,6 +19,21 @@ def main(config_path: str):
     df = pd.read_parquet(f"{cfg['paths']['processed']}/records.parquet")
     embeddings = np.load(f"{cfg['paths']['processed']}/embeddings.npy")
 
+    if df.empty or embeddings.size == 0:
+        raise ValueError(
+            "No records or embeddings found. Run scripts/01_ingest.py and scripts/02_embed.py first."
+        )
+
+    if embeddings.ndim != 2:
+        raise ValueError(
+            f"Embeddings must be 2D. Got shape {embeddings.shape}."
+        )
+
+    if len(df) != embeddings.shape[0]:
+        raise ValueError(
+            f"Records count ({len(df)}) does not match embeddings ({embeddings.shape[0]})."
+        )
+
     reducer = umap.UMAP(
         n_neighbors=cfg["umap"]["n_neighbors"],
         min_dist=cfg["umap"]["min_dist"],

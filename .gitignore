@@ -1,4 +1,16 @@
+# Python
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment variables
+.env
+.env.*__pycache__/
 .venv/
 .env
 .env.*
@@ -16,3 +28,49 @@ __pycache__/
 .DS_Store
 .idea/
 .vscode/
+
+
+# ML / embeddings / indexes
+*.npy
+*.npz
+*.faiss
+*.h5
+*.pt
+*.onnx
+*.joblib
+
+# Data artifacts
+*.parquet
+
+# Project data folders
+data/raw/
+data/processed/
+data/index/
+data/checkpoints/
+data/tmp/
+
+# Streamlit cache
+.streamlit/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+
+# Editors
+.idea/
+.vscode/
+
+# Pytest / tooling
+.pytest_cache/
+.mypy_cache/
+ruff_cache/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/

@@ -1,10 +1,12 @@
 sources:
   unam_repository:
     enabled: true
-    base_url: "https://repositorio.unam.mx/oai/request"
+    base_url: "https://repositorio.unam.mx/oai"
     metadata_prefix: "oai_dc"
+    from_date: "2015-01-01"
+    until_date: null
   openalex:
-    enabled: true
+    enabled: false
     base_url: "https://api.openalex.org"
     ror_id: "01tmp8f25"
     per_page: 200
@@ -12,10 +14,19 @@ sources:
     enabled: true
     base_url: "https://www.scielo.org.mx/oai/scielo-oai.php"
     metadata_prefix: "oai_dc"
+    from_date: "2015-01-01"
+    until_date: null
 
 ingest:
-  max_records_per_source: 0  # 0 = no limit
-  polite_pause_seconds: 0.2
+  max_records_per_source: 2000  # 0 = no limit
+  polite_pause_seconds: 2.0
+  request_timeout_seconds: 120
+  request_max_retries: 6
+  retry_backoff_seconds: 3
+  continue_on_source_error: true
+  parallel_time_windows: false
+  window_days: 7
+  max_parallel_workers: 4
 
 paths:
   raw: "data/raw"

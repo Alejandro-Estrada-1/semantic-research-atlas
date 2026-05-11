@@ -2,7 +2,7 @@
 
 Semantic clustering and interactive exploration of academic production from UNAM sources plus OpenAlex and SciELO. The project follows the same end-to-end flow as **jpbascur/text-similarity-maker**, adding a **Self-Organizing Map (SOM)** view for comparison.
 
-## ✨ Features
+## Features
 - **Ingestion** from: UNAM Institutional Repository, OpenAlex, SciELO (configurable)
 - **Embeddings** with multilingual models (Spanish-friendly)
 - **Clustering** (UMAP + HDBSCAN)
@@ -13,7 +13,7 @@ Semantic clustering and interactive exploration of academic production from UNAM
   - Semantic search (FAISS)
   - Compare view (UMAP vs SOM)
 
-## 📁 Repository Structure
+## Repository Structure
 ```
 app/                  # Streamlit app
 config/               # YAML configs (sources, models, params)
@@ -22,14 +22,14 @@ scripts/              # CLI pipeline steps
 src/semantic_research_atlas/  # Library code
 ```
 
-## 🚀 Quick Start
+## Quick Start
 ```bash
-python -m venv .venv
-source .venv/bin/activate
+python -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## 🧩 Pipeline (Local/Colab)
+## Pipeline (Local/Colab)
 1. **Ingest**
 ```bash
 python scripts/01_ingest.py --config config/default.yaml
@@ -51,24 +51,34 @@ python scripts/04_som.py --config config/default.yaml
 python scripts/05_faiss.py --config config/default.yaml
 ```
 
-## 📊 App
+## App
 ```bash
 streamlit run app/streamlit_app.py
 ```
 
-## 📦 Output Artifacts
+## Output Artifacts
 - `data/processed/unam_embeddings_2d.parquet`
 - `data/processed/unam_embeddings_2d.arrow`
 - `data/processed/som_map.parquet`
 - `data/processed/som_umatrix.parquet`
 - `data/index/index.faiss`
 
-## 📌 Notes
+## Notes
 - For 300k records, **Arrow + FAISS** is recommended.
 - For SOM, train on a **subsample (e.g., 50k)** then map the full set.
 
-## 🔧 Configuration
+## Configuration
 All settings live in `config/default.yaml`.
+
+Recommended OAI-PMH defaults for slower servers:
+```yaml
+ingest:
+  max_records_per_source: 2000
+  polite_pause_seconds: 2.0
+  request_timeout_seconds: 120
+  request_max_retries: 6
+  retry_backoff_seconds: 3
+```
 
 ---
 
