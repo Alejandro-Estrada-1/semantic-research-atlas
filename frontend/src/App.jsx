@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Scatterplot from 'deepscatter';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 import './index.css';
 
 /**
@@ -16,6 +18,37 @@ function generateColors(n) {
     colors.push(`hsl(${hue}, ${sat}%, ${lum}%)`);
   }
   return colors;
+}
+
+/**
+ * Render text with HTML and LaTeX math formulas parsed via KaTeX
+ */
+function renderTextWithMath(text) {
+  if (!text) return { __html: '' };
+  
+  let html = text;
+  
+  // Clean up rogue XML tags that OpenAlex sometimes includes
+  html = html.replace(/&lt;\/?title&gt;/gi, '');
+  html = html.replace(/<\/?title>/gi, '');
+  html = html.replace(/&lt;\/?jats:[a-z]+&gt;/gi, '');
+  html = html.replace(/<\/?jats:[a-z]+>/gi, '');
+
+  try {
+    // Parse LaTeX $$...$$
+    html = html.replace(/\$\$(.*?)\$\$/g, (match, math) => {
+      return katex.renderToString(math, { throwOnError: false, displayMode: true });
+    });
+    // Parse LaTeX $...$
+    html = html.replace(/\$(.*?)\$/g, (match, math) => {
+      // Ignore matches that look like prices e.g., $10
+      if (math.match(/^\d/)) return match;
+      return katex.renderToString(math, { throwOnError: false, displayMode: false });
+    });
+  } catch (e) {
+    // Ignore KaTeX parsing errors
+  }
+  return { __html: html };
 }
 
 function App() {
@@ -265,7 +298,7 @@ function App() {
           <div className="sidebar-section-title">Data Preview</div>
           {selectedPoint ? (
             <div className="point-detail">
-              <div className="detail-title">{selectedPoint.title}</div>
+              <div className="detail-title" dangerouslySetInnerHTML={renderTextWithMath(selectedPoint.title)} />
               {selectedPoint.year && (
                 <div className="detail-field">
                   <div className="detail-label">Year</div>
@@ -302,9 +335,14 @@ function App() {
               {selectedPoint.abstract && (
                 <div className="detail-field">
                   <div className="detail-label">Abstract</div>
-                  <div className="detail-abstract">
-                    {selectedPoint.abstract.length > 500 ? selectedPoint.abstract.slice(0, 500) + '…' : selectedPoint.abstract}
-                  </div>
+                  <div 
+                    className="detail-abstract" 
+                    dangerouslySetInnerHTML={renderTextWithMath(
+                      selectedPoint.abstract.length > 500 
+                        ? selectedPoint.abstract.slice(0, 500) + '…' 
+                        : selectedPoint.abstract
+                    )} 
+                  />
                 </div>
               )}
             </div>

@@ -46,10 +46,14 @@ def main(config_path: str):
         "effect", "effects", "different", "two", "method", "methods", "between", "these",
         "de", "la", "el", "en", "y", "a", "los", "se", "del", "las", "un", "por", "con", "no",
         "una", "su", "para", "es", "al", "lo", "como", "mas", "o", "pero", "sus", "le", "ya",
-        "este", "esta", "estudio", "analisis", "resultados", "metodo", "desarrollo", "articulo"
+        "este", "esta", "estudio", "analisis", "resultados", "metodo", "desarrollo", "articulo",
+        # MathML / XML leftovers
+        "mrow", "math", "xmlns", "inline", "msub", "mi", "mn", "mo", "msup", "msubsup",
+        "msqrt", "mtext", "mathvariant", "bold", "display", "http", "www", "org", "1998"
     ])
 
     from sklearn.cluster import KMeans
+    import re
 
     # TF-IDF configured to strip accents to merge "Mexico" and "México"
     vectorizer = TfidfVectorizer(
@@ -68,7 +72,9 @@ def main(config_path: str):
         centroid_y = float(cluster_df['y'].mean())
         count = int(len(cluster_df))
         
-        texts = (cluster_df['title'].fillna('') + ' ' + cluster_df['abstract'].fillna('')).tolist()
+        raw_texts = (cluster_df['title'].fillna('') + ' ' + cluster_df['abstract'].fillna('')).tolist()
+        # Remove XML/HTML tags using regex
+        texts = [re.sub(r'<[^>]+>', ' ', t) for t in raw_texts]
         
         try:
             tfidf_matrix = vectorizer.fit_transform(texts)
@@ -144,8 +150,8 @@ def main(config_path: str):
             "labels": labels_data
         }, f, ensure_ascii=False, indent=2)
 
-    print(f"✅ Generated {len(labels_data)} map labels for {len(valid_clusters)} clusters.")
-    print(f"✅ Saved cluster metadata to: {out_path}")
+    print(f"Generated {len(labels_data)} map labels for {len(valid_clusters)} clusters.")
+    print(f"Saved cluster metadata to: {out_path}")
 
 
 if __name__ == "__main__":
