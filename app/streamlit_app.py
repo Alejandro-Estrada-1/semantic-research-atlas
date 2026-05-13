@@ -203,8 +203,8 @@ def add_density_radius(df: pd.DataFrame, bins: int = 80) -> pd.DataFrame:
     return density_df
 
 
-def render_top_matches(df, matches_idx):
-    if matches_idx is not None:
+def render_top_matches(df, matches_idx, has_query):
+    if has_query and matches_idx is not None and not matches_idx.empty:
         st.subheader("Top matches")
         st.dataframe(df.loc[matches_idx, ["title", "year", "faculty", "source", "url"]])
 
@@ -467,9 +467,13 @@ def build_umap_pydeck(df, matches_idx, opacity_value: float, radius_scale: float
         else:
             plot_df = plot_df[plot_df["is_match"]]
 
+    # Drop heavy text columns before serializing 119k rows for PyDeck
+    cols_to_keep = ["x", "y", "final_radius", "color", "title", "faculty", "year", "source", "cluster"]
+    light_plot_df = plot_df[[c for c in cols_to_keep if c in plot_df.columns]].copy()
+
     scatter = pdk.Layer(
         "ScatterplotLayer",
-        data=plot_df,
+        data=light_plot_df,
         get_position="[x, y]",
         get_radius="final_radius",
         radius_min_pixels=2,
@@ -553,7 +557,7 @@ if view == "UMAP (Pydeck)":
         build_umap_pydeck(filtered_umap, matches, point_opacity, base_radius, color_mode),
         key=f"umap_chart_{st.session_state.map_view_key}",
     )
-    render_top_matches(filter_matches(filtered_umap), filter_matches(filtered_umap).index)
+    render_top_matches(filter_matches(filtered_umap), filter_matches(filtered_umap).index, query != "")
     render_details_panel(filter_matches(filtered_umap), filter_matches(filtered_umap).index)
 
 elif view == "SOM (U-Matrix)":
@@ -578,7 +582,7 @@ elif view == "SOM (U-Matrix)":
     fig = build_umatrix_figure(umatrix_df, som_df, matches)
     st.plotly_chart(fig, width="stretch")
 
-    render_top_matches(filter_matches(som_df), filter_matches(som_df).index)
+    render_top_matches(filter_matches(som_df), filter_matches(som_df).index, query != "")
 
 else:
     left, right = st.columns(2)
@@ -618,5 +622,5 @@ else:
             width="stretch",
         )
 
-    render_top_matches(filter_matches(filtered_umap), filter_matches(filtered_umap).index)
+    render_top_matches(filter_matches(filtered_umap), filter_matches(filtered_umap).index, query != "")
     render_details_panel(filter_matches(filtered_umap), filter_matches(filtered_umap).index)

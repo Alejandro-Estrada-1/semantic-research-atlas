@@ -79,8 +79,8 @@ def main(config_path: str):
     with ipc.new_file(arrow_path, table.schema) as writer:
         writer.write(table)
 
-    print(f"✅ Saved: {out_path}")
-    print(f"✅ Saved: {arrow_path}")
+    print(f" Saved: {out_path}")
+    print(f" Saved: {arrow_path}")
 
 
 if __name__ == "__main__":
