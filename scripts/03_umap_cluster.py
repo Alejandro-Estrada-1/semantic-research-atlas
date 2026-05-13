@@ -15,36 +15,57 @@ from semantic_research_atlas.utils import load_config
 
 
 def main(config_path: str):
+    import gc
     cfg = load_config(config_path)
-    df = pd.read_parquet(f"{cfg['paths']['processed']}/records.parquet")
-    embeddings = np.load(f"{cfg['paths']['processed']}/embeddings.npy")
+    
+    # 1. Load ONLY the embeddings to save RAM
+    embeddings_path = f"{cfg['paths']['processed']}/embeddings.npy"
+    print(f"Loading embeddings from {embeddings_path}...")
+    embeddings = np.load(embeddings_path)
 
-    if df.empty or embeddings.size == 0:
-        raise ValueError(
-            "No records or embeddings found. Run scripts/01_ingest.py and scripts/02_embed.py first."
-        )
+    if embeddings.size == 0 or embeddings.ndim != 2:
+        raise ValueError(f"Invalid embeddings array. Shape: {embeddings.shape}")
 
-    if embeddings.ndim != 2:
-        raise ValueError(
-            f"Embeddings must be 2D. Got shape {embeddings.shape}."
-        )
+    total_records = embeddings.shape[0]
+    print(f"Loaded {total_records:,} embeddings.")
 
-    if len(df) != embeddings.shape[0]:
-        raise ValueError(
-            f"Records count ({len(df)}) does not match embeddings ({embeddings.shape[0]})."
-        )
+    # 2. Cast to float32 to halve memory usage
+    embeddings = embeddings.astype(np.float32)
 
+    # 3. UMAP
+    print("Running UMAP (low memory mode, single-threaded)...")
     reducer = umap.UMAP(
         n_neighbors=cfg["umap"]["n_neighbors"],
         min_dist=cfg["umap"]["min_dist"],
         n_components=cfg["umap"]["n_components"],
         metric=cfg["umap"]["metric"],
-        random_state=42,
+        random_state=42,       # Forces single-threaded (prevents RAM spikes)
+        low_memory=True,       # Uses less RAM during k-NN graph construction
+        n_jobs=1               # Explicitly prevent multi-processing
     )
     coords = reducer.fit_transform(embeddings)
 
-    clusterer = hdbscan.HDBSCAN(min_cluster_size=cfg["clustering"]["min_cluster_size"])
-    labels = clusterer.fit_predict(embeddings)
+    # 4. FREE RAM BEFORE HDBSCAN
+    print("UMAP finished. Freeing memory...")
+    del embeddings
+    del reducer
+    gc.collect()
+
+    # 5. HDBSCAN
+    print("Running HDBSCAN (single-threaded)...")
+    clusterer = hdbscan.HDBSCAN(
+        min_cluster_size=cfg["clustering"]["min_cluster_size"],
+        core_dist_n_jobs=1  # Prevent multi-processing memory duplication
+    )
+    labels = clusterer.fit_predict(coords)
+
+    # 6. NOW load the DataFrame (we didn't need it before!)
+    print("Loading records to attach coordinates...")
+    df_path = f"{cfg['paths']['processed']}/records.parquet"
+    df = pd.read_parquet(df_path)
+
+    if len(df) != total_records:
+        raise ValueError(f"Records count ({len(df)}) does not match embeddings ({total_records}).")
 
     df["x"] = coords[:, 0]
     df["y"] = coords[:, 1]
@@ -58,8 +79,8 @@ def main(config_path: str):
     with ipc.new_file(arrow_path, table.schema) as writer:
         writer.write(table)
 
-    print(f"Saved: {out_path}")
-    print(f"Saved: {arrow_path}")
+    print(f"✅ Saved: {out_path}")
+    print(f"✅ Saved: {arrow_path}")
 
 
 if __name__ == "__main__":

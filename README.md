@@ -4,19 +4,19 @@ Semantic clustering and interactive exploration of academic production from UNAM
 
 ## Features
 - **Ingestion** from: UNAM Institutional Repository, OpenAlex, SciELO (configurable)
+- **Massive Data Processing** using **DuckDB** for memory-efficient chunking and deduplication.
 - **Embeddings** with multilingual models (Spanish-friendly)
 - **Clustering** (UMAP + HDBSCAN)
 - **SOM** view (U-Matrix + neuron mapping)
-- **Interactive app** (Streamlit) with:
-  - UMAP map (Pydeck/WebGL + Apache Arrow)
-  - SOM U-Matrix
-  - Semantic search (FAISS)
-  - Compare view (UMAP vs SOM)
+- **Interactive Apps**:
+  - Legacy Streamlit app (UMAP, SOM, FAISS semantic search)
+  - **Modern WebGL frontend** (Vite + React + DeepScatter) for rendering millions of points smoothly.
 
 ## Repository Structure
 ```
-app/                  # Streamlit app
+app/                  # Legacy Streamlit app
 config/               # YAML configs (sources, models, params)
+frontend/             # React/Vite DeepScatter WebGL App
 notebooks/            # Optional experiments
 scripts/              # CLI pipeline steps
 src/semantic_research_atlas/  # Library code
@@ -50,8 +50,27 @@ python scripts/04_som.py --config config/default.yaml
 ```bash
 python scripts/05_faiss.py --config config/default.yaml
 ```
+6. **Export DeepScatter Tiles (WebGL)**
+```bash
+python scripts/06_export_deepscatter.py --config config/default.yaml
+```
 
-## App
+## Apps
+
+### 1. WebGL DeepScatter Frontend (Recommended)
+This uses the tiled feather files to render millions of points using WebGL. You need two terminals:
+**Terminal A (CORS Data Server):**
+```bash
+python scripts/serve_cors.py --port 8000
+```
+**Terminal B (Vite Dev Server):**
+```bash
+cd frontend
+npm install  # Solo la primera vez
+npm run dev
+```
+
+### 2. Legacy Streamlit App
 ```bash
 streamlit run app/streamlit_app.py
 ```
@@ -62,6 +81,7 @@ streamlit run app/streamlit_app.py
 - `data/processed/som_map.parquet`
 - `data/processed/som_umatrix.parquet`
 - `data/index/index.faiss`
+- `data/tiles/` (Quadfeather structure for DeepScatter)
 
 ## Notes
 - For 300k records, **Arrow + FAISS** is recommended.

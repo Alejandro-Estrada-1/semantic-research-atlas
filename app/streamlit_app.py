@@ -189,27 +189,7 @@ def normalize_year_color(year_value, year_min, year_max):
     return [int(64 + ratio * 160), int(80 + ratio * 120), int(255 - ratio * 150)]
 
 
-def compute_cluster_keywords(df, top_n: int = 5):
-    keywords = {}
-    if "cluster" not in df.columns:
-        return keywords
-    text_series = df.get("title", "").fillna("") + " " + df.get("abstract", "").fillna("")
-    for cluster_id, group in df.groupby("cluster"):
-        tokens = (
-            text_series.loc[group.index]
-            .str.lower()
-            .str.replace(r"[^a-z0-9áéíóúüñ ]", " ", regex=True)
-            .str.split()
-        )
-        counts = {}
-        for words in tokens:
-            for word in words:
-                if len(word) < 4:
-                    continue
-                counts[word] = counts.get(word, 0) + 1
-        top_words = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:top_n]
-        keywords[cluster_id] = ", ".join([word for word, _ in top_words])
-    return keywords
+
 
 
 def add_density_radius(df: pd.DataFrame, bins: int = 80) -> pd.DataFrame:
@@ -394,6 +374,26 @@ match_set = set(matches) if matches is not None else set()
 faculty_palette = build_categorical_palette(faculty_options)
 source_palette = build_categorical_palette(source_options)
 
+cluster_keywords = {}
+if "cluster" in umap_df.columns:
+    # Read pre-computed keywords instead of recalculating via heavy regex
+    try:
+        import json
+        with open("data/tiles/cluster_labels.json", "r", encoding="utf-8") as f:
+            labels_data = json.load(f)
+            for c in labels_data.get("clusters", []):
+                cluster_keywords[c["cluster"]] = ", ".join(c.get("keywords", []))
+    except Exception as e:
+        cluster_keywords = {}
+
+    if cluster_keywords:
+        st.sidebar.subheader("Cluster keywords")
+        for cluster_id in sorted(cluster_keywords.keys()):
+            if cluster_id == -1 and not st.session_state.show_noise:
+                continue
+            label = f"{cluster_id}: {cluster_keywords[cluster_id]}"
+            st.sidebar.markdown(label)
+
 if show_legend and color_mode == "Faculty" and faculty_options:
     legend_rows = []
     for faculty in faculty_options:
@@ -432,7 +432,7 @@ def build_umap_pydeck(df, matches_idx, opacity_value: float, radius_scale: float
     else:
         plot_df["radius"] = 1.0
 
-    plot_df["final_radius"] = plot_df["radius"] * radius_scale * 10
+    plot_df["final_radius"] = plot_df["radius"] * radius_scale * 20
 
     if mode == "Faculty":
         plot_df["color"] = plot_df["faculty"].map(faculty_palette)
@@ -473,21 +473,34 @@ def build_umap_pydeck(df, matches_idx, opacity_value: float, radius_scale: float
         get_position="[x, y]",
         get_radius="final_radius",
         radius_min_pixels=2,
-        radius_max_pixels=15,
+        radius_max_pixels=50,
         get_fill_color="color",
-        coordinate_system=pdk.constants.COORDINATE_SYSTEM.CARTESIAN,
         pickable=True,
     )
 
+    x_center = float(plot_df["x"].mean()) if not plot_df.empty else 0.0
+    y_center = float(plot_df["y"].mean()) if not plot_df.empty else 0.0
+
+    x_span = (
+        float(plot_df["x"].max() - plot_df["x"].min())
+        if not plot_df.empty
+        else 1.0
+    )
+
+    zoom = 0
+
+    if x_span < 5:
+        zoom = 3
+    elif x_span < 15:
+        zoom = 2
+    elif x_span < 40:
+        zoom = 1
+    else:
+        zoom = 0
+
     view_state = pdk.ViewState(
-        target=[
-            float(plot_df["x"].mean()) if not plot_df.empty else 0.0,
-            float(plot_df["y"].mean()) if not plot_df.empty else 0.0,
-            0,
-        ],
-        zoom=2,
-        min_zoom=-1,
-        max_zoom=12,
+        target=[x_center, y_center, 0],
+        zoom=zoom,
     )
 
     tooltip = {
@@ -496,10 +509,8 @@ def build_umap_pydeck(df, matches_idx, opacity_value: float, radius_scale: float
 
     return pdk.Deck(
         layers=[scatter],
-        views=[pdk.View(type="OrthographicView", controller=True)],
         initial_view_state=view_state,
-        map_provider=None,
-        map_style=None,
+        views=[pdk.View(type="OrthographicView")],
         tooltip=tooltip,
     )
 
@@ -565,7 +576,7 @@ elif view == "SOM (U-Matrix)":
 
     umatrix_df = load_umatrix(umatrix_path)
     fig = build_umatrix_figure(umatrix_df, som_df, matches)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     render_top_matches(filter_matches(som_df), filter_matches(som_df).index)
 
@@ -604,7 +615,7 @@ else:
         st.subheader("SOM U-Matrix")
         st.plotly_chart(
             build_umatrix_figure(umatrix_df, som_df, matches),
-            use_container_width=True,
+            width="stretch",
         )
 
     render_top_matches(filter_matches(filtered_umap), filter_matches(filtered_umap).index)

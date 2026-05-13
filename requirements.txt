@@ -26,3 +26,7 @@ pydeck
 # Utils
 tqdm
 pyyaml
+
+# Database & WebGL
+duckdb
+quadfeather

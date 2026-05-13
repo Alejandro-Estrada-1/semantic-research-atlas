@@ -74,3 +74,11 @@ ruff_cache/
 dist/
 build/
 *.egg-info/
+
+# DeepScatter Tiles
+data/tiles/
+
+# Frontend (Vite/React)
+frontend/node_modules/
+frontend/dist/
+frontend/.eslintcache

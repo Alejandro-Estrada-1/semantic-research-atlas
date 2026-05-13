@@ -31,7 +31,8 @@ NS = {
 
 OUTPUT_COLUMNS = ["id", "title", "year", "faculty", "abstract", "source", "url"]
 RETRYABLE_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}
-UNAM_OPENALEX_ID = "https://openalex.org/I70126969"
+UNAM_OPENALEX_ID = "https://openalex.org/I8961855"
+UNAM_OPENALEX_ID_OLD = "https://openalex.org/I70126969"  # legacy, may still appear
 
 
 def _first_text(parent: ET.Element, tag: str) -> str:
@@ -311,15 +312,27 @@ def _write_batch_parquet(records: List[Dict], tmp_dir: str, batch_index: int, ba
 
 
 def _merge_parquet_batches(batch_files: List[str], output_path: str) -> None:
+    import duckdb
     if not batch_files:
         pd.DataFrame(columns=OUTPUT_COLUMNS).to_parquet(output_path, index=False)
         return
 
-    tables = [pq.read_table(path) for path in batch_files]
-    merged = pa.concat_tables(tables, promote=True)
-    df = merged.to_pandas()
-    df = df.drop_duplicates(subset=["id", "url"]).reset_index(drop=True)
-    df.to_parquet(output_path, index=False)
+    conn = duckdb.connect()
+    # duckdb handles reading a list of files natively
+    file_paths = [f"'{p}'" for p in batch_files]
+    files_str = ", ".join(file_paths)
+    
+    # Using QUALIFY for deduplication without pulling everything into RAM
+    query = f"""
+    COPY (
+        SELECT * EXCLUDE (rn) FROM (
+            SELECT *, ROW_NUMBER() OVER(PARTITION BY id, url ORDER BY year DESC) as rn 
+            FROM read_parquet([{files_str}])
+        ) WHERE rn = 1
+    ) TO '{output_path}' (FORMAT 'parquet');
+    """
+    conn.execute(query)
+
 
 
 def _next_batch_index(tmp_dir: str, batch_prefix: str) -> int:
@@ -587,31 +600,60 @@ def _normalize_text(value: str) -> str:
 
 
 def extract_faculty_from_authorships(authorships: Optional[List[Dict]]) -> str:
+    """Extract the most relevant institution/author info from OpenAlex authorships.
+
+    Priority:
+    1. UNAM sub-institution (e.g. "Instituto de Ecología") if available.
+    2. UNAM author name(s) when only the generic UNAM is listed.
+    3. First author's institution as fallback.
+    """
     if not authorships:
-        return "UNAM (General)"
+        return ""
+
+    unam_generic = "Universidad Nacional Autónoma de México"
+    unam_sub_institutions = []
+    unam_author_names = []
+    first_author_inst = ""
 
     for auth in authorships:
-        for inst in auth.get("institutions", []):
-            if inst.get("id") == UNAM_OPENALEX_ID:
-                raw_affiliation = auth.get("raw_affiliation_string", "")
-                normalized = _normalize_text(raw_affiliation)
+        institutions = auth.get("institutions", [])
+        if not institutions:
+            continue
 
-                if "fisica" in normalized:
-                    return "Instituto de Fisica"
-                if "ciencias" in normalized:
-                    return "Facultad de Ciencias"
-                if "quimica" in normalized:
-                    return "Facultad de Quimica"
-                if "medicina" in normalized:
-                    return "Facultad de Medicina"
-                if "iimas" in normalized:
-                    return "IIMAS"
+        if not first_author_inst:
+            first_author_inst = institutions[0].get("display_name", "")
 
-                if raw_affiliation:
-                    return raw_affiliation.split(",")[0].strip()
-                return "UNAM (Otras)"
+        is_unam = any(
+            inst.get("id") in (UNAM_OPENALEX_ID, UNAM_OPENALEX_ID_OLD)
+            or "autónoma de méxico" in (inst.get("display_name") or "").lower()
+            for inst in institutions
+        )
 
-    return "UNAM (Otras)"
+        if is_unam:
+            author_name = auth.get("author", {}).get("display_name", "")
+            if author_name:
+                unam_author_names.append(author_name)
+
+            for inst in institutions:
+                name = inst.get("display_name", "")
+                if name and name != unam_generic:
+                    unam_sub_institutions.append(name)
+
+            raw = auth.get("raw_affiliation_string", "").strip()
+            if raw and unam_generic not in raw:
+                unam_sub_institutions.append(raw.split(",")[0].strip())
+
+    # Best case: specific UNAM sub-institution
+    if unam_sub_institutions:
+        return unam_sub_institutions[0]
+
+    # Next best: UNAM author names (up to 2)
+    if unam_author_names:
+        if len(unam_author_names) <= 2:
+            return "; ".join(unam_author_names) + " (UNAM)"
+        return f"{unam_author_names[0]}; {unam_author_names[1]} et al. (UNAM)"
+
+    return first_author_inst or ""
 
 
 def ingest_openalex(
@@ -869,7 +911,9 @@ def main(config_path: str):
             ensure_dirs(tmp_dir)
             if df.empty:
                 return []
-            batch_path = _write_batch_parquet(df.to_dict("records"), tmp_dir, 1, "batch")
+            import numpy as np
+            records = df.replace({np.nan: None}).to_dict("records")
+            batch_path = _write_batch_parquet(records, tmp_dir, 1, "batch")
             return [batch_path]
 
         batch_files_all.extend(run_source("openalex", run_openalex))
