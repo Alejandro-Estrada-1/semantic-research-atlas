@@ -52,7 +52,7 @@ def main(config_path: str, import_npy: str = None):
         table = pq.read_table(in_path)
         pq.write_table(table, out_parquet)
 
-        print(f"✅ Imported {embeddings.shape[0]:,} embeddings (dim={embeddings.shape[1]})")
+        print(f" Imported {embeddings.shape[0]:,} embeddings (dim={embeddings.shape[1]})")
         print(f"   Saved: {out_npy}")
         print(f"   Saved: {out_parquet}")
         return
@@ -106,7 +106,7 @@ def main(config_path: str, import_npy: str = None):
         final_embeddings = np.vstack(embeddings_list)
         np.save(out_npy, final_embeddings)
         total_time = time.time() - start
-        print(f"\n✅ Saved {final_embeddings.shape[0]:,} embeddings (dim={final_embeddings.shape[1]})")
+        print(f"\n Saved {final_embeddings.shape[0]:,} embeddings (dim={final_embeddings.shape[1]})")
         print(f"   Total time: {total_time/60:.1f} minutes")
     else:
         print("No records processed.")

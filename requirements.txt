@@ -5,7 +5,6 @@ pyarrow
 scikit-learn
 umap-learn
 hdbscan
-faiss-cpu
 
 # Embeddings
 sentence-transformers
@@ -17,11 +16,6 @@ MiniSom
 requests
 beautifulsoup4
 lxml
-
-# App
-streamlit
-plotly
-pydeck
 
 # Utils
 tqdm
