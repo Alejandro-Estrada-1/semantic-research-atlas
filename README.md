@@ -2,7 +2,7 @@
 
 A highly scalable, 100% local, browser-controlled pipeline to construct interactive WebGL semantic maps of any institution's scholarly production in the world.
 
-![Semantic Research Atlas Overview](frontend/public/atlas.png)
+![Semantic Research Atlas Overview](frontend/public/atlas)
 
 > [!NOTE]
 > **Privacy First**: This architecture runs entirely on your local machine. No data is sent to external servers for embedding or clustering.
