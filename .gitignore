@@ -10,25 +10,7 @@ venv/
 
 # Environment variables
 .env
-.env.*__pycache__/
-.venv/
-.env
 .env.*
-*.pyc
-*.pyo
-*.pyd
-*.npy
-*.npz
-*.parquet
-*.faiss
-*.h5
-*.pt
-*.onnx
-*.joblib
-.DS_Store
-.idea/
-.vscode/
-
 
 # ML / embeddings / indexes
 *.npy
@@ -48,9 +30,8 @@ data/processed/
 data/index/
 data/checkpoints/
 data/tmp/
-
-# Streamlit cache
-.streamlit/
+data/models/
+data/tiles/
 
 # Jupyter
 .ipynb_checkpoints/
@@ -74,9 +55,6 @@ ruff_cache/
 dist/
 build/
 *.egg-info/
-
-# DeepScatter Tiles
-data/tiles/
 
 # Frontend (Vite/React)
 frontend/node_modules/

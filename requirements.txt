@@ -6,8 +6,10 @@ scikit-learn
 umap-learn
 hdbscan
 
-# Embeddings
-sentence-transformers
+# Embeddings (CTranslate2 INT8 — no PyTorch needed)
+ctranslate2
+transformers
+tokenizers
 
 # SOM
 MiniSom
@@ -17,9 +19,14 @@ requests
 beautifulsoup4
 lxml
 
+# Server
+flask
+flask-cors
+
 # Utils
 tqdm
 pyyaml
+python-dotenv
 
 # Database & WebGL
 duckdb

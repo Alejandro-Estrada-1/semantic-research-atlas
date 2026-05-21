@@ -648,3 +648,295 @@ html, body {
   background: rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
 }
+
+/* ════════════════════════════════════════════════════════ */
+/* ── Setup Flow (Search / Confirm / Progress) ──────────── */
+/* ════════════════════════════════════════════════════════ */
+
+.setup-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  background: radial-gradient(circle at 50% 0%, #1a1a24 0%, #0a0a0f 70%);
+}
+
+.search-container, .confirm-card, .pipeline-progress {
+  width: 100%;
+  max-width: 600px;
+  background: rgba(25, 25, 35, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 40px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+}
+
+.search-container h1 {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.search-container .subtitle {
+  color: rgba(255,255,255,0.5);
+  text-align: center;
+  margin-bottom: 24px;
+  font-size: 14px;
+}
+
+.search-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  background: rgba(0,0,0,0.3);
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.search-tabs button {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.5);
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.search-tabs button.active {
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+}
+
+.search-input {
+  width: 100%;
+  padding: 16px 20px;
+  font-size: 16px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px;
+  color: #fff;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.search-input:focus {
+  border-color: #6366f1;
+}
+
+.search-loading {
+  margin-top: 16px;
+  text-align: center;
+  color: rgba(255,255,255,0.5);
+  font-size: 14px;
+}
+
+.search-results {
+  list-style: none;
+  margin-top: 16px;
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  background: rgba(10,10,15,0.8);
+}
+
+.search-results li {
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  transition: background 0.2s;
+}
+
+.search-results li:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+.result-title {
+  font-weight: 600;
+  color: #fff;
+}
+
+.result-hint {
+  font-size: 12px;
+  color: rgba(255,255,255,0.5);
+  margin-top: 4px;
+}
+
+.result-meta {
+  font-size: 11px;
+  color: #6366f1;
+  margin-top: 4px;
+}
+
+/* Confirm Card */
+.confirm-card h2 {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+.inst-name { font-size: 18px; color: #fff; font-weight: 600; }
+.inst-hint { font-size: 14px; color: rgba(255,255,255,0.6); margin-bottom: 16px; }
+.stats-box {
+  background: rgba(99,102,241,0.1);
+  border: 1px solid rgba(99,102,241,0.3);
+  padding: 12px;
+  border-radius: 8px;
+  color: #a5b4fc;
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.option-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.option-label:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+.option-label.active {
+  border-color: #6366f1;
+  background: rgba(99,102,241,0.05);
+}
+
+.option-label input {
+  margin-top: 4px;
+}
+
+.option-label strong { display: block; color: #fff; margin-bottom: 4px; }
+.option-label p { font-size: 12px; color: rgba(255,255,255,0.5); }
+
+.exists-alert {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.exists-alert .alert-text {
+  color: #34d399;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.btn-cancel {
+  padding: 10px 20px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-primary {
+  padding: 10px 20px;
+  background: #6366f1;
+  border: none;
+  color: #fff;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-primary:hover { background: #4f46e5; }
+
+.btn-secondary {
+  padding: 6px 12px;
+  background: #10b981;
+  border: none;
+  color: #fff;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  font-size: 12px;
+}
+.btn-secondary:hover { background: #059669; }
+
+.btn-danger {
+  padding: 8px 16px;
+  background: #ef4444;
+  border: none;
+  color: #fff;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 16px;
+}
+
+/* Pipeline Progress */
+.progress-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+.step-badge {
+  background: #6366f1;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.step-name {
+  font-size: 14px;
+  color: rgba(255,255,255,0.8);
+}
+.progress-bar {
+  height: 6px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.progress-fill {
+  height: 100%;
+  background: #6366f1;
+  transition: width 0.3s;
+}
+.status-text {
+  font-size: 12px;
+  color: #a5b4fc;
+  margin-bottom: 16px;
+}
+.log-window {
+  background: #000;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 12px;
+  height: 200px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 11px;
+  color: rgba(255,255,255,0.6);
+}
+.log-line {
+  margin-bottom: 2px;
+}

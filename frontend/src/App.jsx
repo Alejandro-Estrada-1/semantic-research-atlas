@@ -60,6 +60,156 @@ function viridisColor(t) {
   ];
 }
 
+/* ── Components ─────────────────────────────────────────── */
+
+function SearchBar({ onSelect }) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [tab, setTab] = useState('institutions');
+
+  useEffect(() => {
+    if (query.length < 3) { setResults([]); return; }
+    const timer = setTimeout(() => {
+      setLoading(true);
+      fetch(`http://localhost:8000/api/search/${tab}?q=${encodeURIComponent(query)}`)
+        .then(r => r.json())
+        .then(data => { setResults(data.results || []); setLoading(false); })
+        .catch(() => setLoading(false));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query, tab]);
+
+  return (
+    <div className="search-container">
+      <h1>Universal Atlas</h1>
+      <p className="subtitle">Search for any institution worldwide to build its semantic research map.</p>
+      <div className="search-tabs">
+        <button className={tab==='institutions'?'active':''} onClick={()=>setTab('institutions')}>Institutions</button>
+        <button className={tab==='global'?'active':''} onClick={()=>setTab('global')}>Global (All)</button>
+      </div>
+      <input 
+        type="text" 
+        className="search-input"
+        placeholder="e.g. Massachusetts Institute of Technology" 
+        value={query} 
+        onChange={e => setQuery(e.target.value)} 
+      />
+      {loading && <div className="search-loading">Searching OpenAlex...</div>}
+      {results.length > 0 && (
+        <ul className="search-results">
+          {results.map(r => (
+            <li key={r.id} onClick={() => onSelect(r)}>
+              <div className="result-title">{r.display_name}</div>
+              {r.hint && <div className="result-hint">{r.hint}</div>}
+              <div className="result-meta">Works: {r.works_count?.toLocaleString() || 0}</div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ConfirmationCard({ inst, onConfirm, onCancel, checkStatus }) {
+  const [mode, setMode] = useState('limited');
+  
+  return (
+    <div className="confirm-card">
+      <h2>Build Atlas</h2>
+      <div className="inst-name">{inst.display_name}</div>
+      <div className="inst-hint">{inst.hint}</div>
+      <div className="stats-box">Total works available: {inst.works_count?.toLocaleString()}</div>
+      
+      {checkStatus?.exists ? (
+        <div className="exists-alert">
+          <div className="alert-text">✓ Atlas already exists!</div>
+          <div style={{display: 'flex', gap: '8px'}}>
+            {checkStatus.available_modes.includes('limited') && (
+              <button className="btn-secondary" onClick={() => onConfirm(inst, 'limited', true)}>Load Fast</button>
+            )}
+            {checkStatus.available_modes.includes('full') && (
+              <button className="btn-secondary" onClick={() => onConfirm(inst, 'full', true)}>Load Full</button>
+            )}
+          </div>
+        </div>
+      ) : null}
+      
+      <div className="options">
+        <label className={`option-label ${mode==='limited'?'active':''}`}>
+          <input type="radio" checked={mode==='limited'} onChange={()=>setMode('limited')} />
+          <div>
+            <strong>Fast Pipeline (15k max)</strong>
+            <p>Takes ~2 minutes on CPU. Good for exploration.</p>
+          </div>
+        </label>
+        <label className={`option-label ${mode==='full'?'active':''}`}>
+          <input type="radio" checked={mode==='full'} onChange={()=>setMode('full')} />
+          <div>
+            <strong>Full Pipeline (All records)</strong>
+            <p>Can take hours for huge universities.</p>
+          </div>
+        </label>
+      </div>
+      
+      <div className="actions">
+        <button className="btn-cancel" onClick={onCancel}>Cancel</button>
+        <button className="btn-primary" onClick={() => onConfirm(inst, mode, false)}>
+          Start Building Pipeline
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PipelineProgress({ instName, onAbort, onComplete }) {
+  const [status, setStatus] = useState(null);
+  const logRef = useRef(null);
+  
+  useEffect(() => {
+    const timer = setInterval(() => {
+      fetch('http://localhost:8000/api/pipeline/status')
+        .then(r => r.json())
+        .then(data => {
+          setStatus(data);
+          if (data.completed) {
+             clearInterval(timer);
+             setTimeout(onComplete, 2000);
+          }
+        });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [onComplete]);
+
+  useEffect(() => {
+    if (logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight;
+    }
+  }, [status?.log_lines]);
+
+  if (!status) return <div className="pipeline-progress">Connecting to pipeline...</div>;
+
+  return (
+    <div className="pipeline-progress">
+      <h2>Building Atlas: {instName}</h2>
+      <div className="progress-header">
+        <span className="step-badge">Step {status.step_num}/{status.total_steps}</span>
+        <span className="step-name">{status.step || 'Starting...'}</span>
+      </div>
+      <div className="progress-bar">
+        <div className="progress-fill" style={{ width: `${(Math.max(1, status.step_num) / status.total_steps) * 100}%` }} />
+      </div>
+      <div className="status-text">{status.progress}</div>
+      <div className="log-window" ref={logRef}>
+        {status.log_lines.map((l, i) => <div key={i} className="log-line">{l}</div>)}
+      </div>
+      {!status.completed && (
+        <button className="btn-danger" onClick={onAbort}>Abort Process</button>
+      )}
+    </div>
+  );
+}
+
 /* ── SOM Heatmap Component ──────────────────────────────── */
 
 function SomHeatmap({ somData, colors, clusterMeta, onPointHover, width, height }) {
@@ -79,7 +229,6 @@ function SomHeatmap({ somData, colors, clusterMeta, onPointHover, width, height 
     canvas.width = width;
     canvas.height = height;
 
-    // Find min/max for normalization
     let dMin = Infinity, dMax = -Infinity;
     for (const row of somData.umatrix) {
       for (const v of row) {
@@ -89,7 +238,6 @@ function SomHeatmap({ somData, colors, clusterMeta, onPointHover, width, height 
     }
     const dRange = dMax - dMin || 1;
 
-    // Draw U-Matrix cells
     for (let x = 0; x < gx; x++) {
       for (let y = 0; y < gy; y++) {
         const t = (somData.umatrix[x][y] - dMin) / dRange;
@@ -99,7 +247,6 @@ function SomHeatmap({ somData, colors, clusterMeta, onPointHover, width, height 
       }
     }
 
-    // Draw sampled points
     if (somData.points && colors.length) {
       for (const pt of somData.points) {
         const cx = pt.som_y * cellW + cellW / 2;
@@ -115,7 +262,6 @@ function SomHeatmap({ somData, colors, clusterMeta, onPointHover, width, height 
       }
     }
 
-    // Highlight hovered cell
     if (hoveredCell) {
       const { x, y } = hoveredCell;
       ctx.strokeStyle = '#fff';
@@ -137,7 +283,6 @@ function SomHeatmap({ somData, colors, clusterMeta, onPointHover, width, height 
     if (cellX >= 0 && cellX < somData.grid_x && cellY >= 0 && cellY < somData.grid_y) {
       setHoveredCell({ x: cellX, y: cellY });
 
-      // Find a point in this cell to show in sidebar
       const pt = somData.points?.find(p => p.som_x === cellX && p.som_y === cellY);
       if (pt && onPointHover) {
         const density = somData.density?.[cellX]?.[cellY] || 0;
@@ -181,6 +326,12 @@ function SomHeatmap({ somData, colors, clusterMeta, onPointHover, width, height 
 /* ── Main App ───────────────────────────────────────────── */
 
 function App() {
+  const [appState, setAppState] = useState('search'); // 'search', 'confirm', 'pipeline', 'atlas'
+  const [selectedInst, setSelectedInst] = useState(null);
+  const [checkStatus, setCheckStatus] = useState(null);
+  const [pipelineMode, setPipelineMode] = useState('limited');
+  const [instId, setInstId] = useState('default');
+  
   const scatterRef = useRef(null);
   const [selectedPoint, setSelectedPoint] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -193,9 +344,63 @@ function App() {
   const [activeView, setActiveView] = useState('atlas');
   const [somData, setSomData] = useState(null);
 
-  // ── Load cluster metadata + labels ──
-  useEffect(() => {
-    fetch('http://localhost:8000/data/tiles/cluster_labels.json')
+  // ── Setup Flow ──
+
+  const handleSelectInst = (inst) => {
+    setSelectedInst(inst);
+    let cleanId = 'default';
+    if (inst.external_id && inst.external_id.includes('ror.org')) {
+      cleanId = inst.external_id.split('/').pop();
+    } else {
+      cleanId = inst.id.split('/').pop();
+    }
+    setInstId(cleanId);
+    
+    // Check if tiles exist
+    fetch(`http://localhost:8000/api/pipeline/check/${cleanId}`)
+      .then(r => r.json())
+      .then(data => {
+        setCheckStatus(data);
+        setAppState('confirm');
+      })
+      .catch(() => {
+        setCheckStatus({ exists: false });
+        setAppState('confirm');
+      });
+  };
+
+  const handleConfirm = (inst, mode, loadInstantly) => {
+    setPipelineMode(mode);
+    if (loadInstantly) {
+      loadAtlasData(instId, mode);
+      setAppState('atlas');
+      return;
+    }
+    
+    // Start pipeline
+    fetch('http://localhost:8000/api/pipeline/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        inst_id: instId,
+        inst_name: inst.display_name,
+        filter_key: inst.external_id?.includes('ror') ? 'ror' : 'openalex_id',
+        filter_value: instId,
+        max_records: mode === 'limited' ? 15000 : 0,
+        mode: mode
+      })
+    }).then(() => setAppState('pipeline'));
+  };
+
+  const handleAbort = () => {
+    fetch('http://localhost:8000/api/pipeline/abort', { method: 'POST' })
+      .then(() => setAppState('search'));
+  };
+
+  const loadAtlasData = (id, mode) => {
+    const prefix = `${id}_${mode}`;
+    
+    fetch(`http://localhost:8000/data/tiles/${prefix}/cluster_labels.json`)
       .then(r => r.json())
       .then(data => {
         const clusters = data.clusters || [];
@@ -203,18 +408,16 @@ function App() {
         setAllLabels(data.labels || []);
         setColors(generateColors(clusters.length));
       })
-      .catch(() => console.warn('Could not load cluster labels'));
-  }, []);
+      .catch(console.warn);
 
-  // ── Load SOM data ──
-  useEffect(() => {
-    fetch('http://localhost:8000/data/tiles/som_umatrix.json')
+    fetch(`http://localhost:8000/data/tiles/${prefix}/som_umatrix.json`)
       .then(r => r.json())
       .then(data => setSomData(data))
-      .catch(() => console.warn('Could not load SOM data'));
-  }, []);
+      .catch(console.warn);
+  };
 
-  // ── Convert data coords → screen coords for floating labels ──
+  // ── Visualization Flow ──
+
   const updateLabelPositions = useCallback(() => {
     const scatter = scatterRef.current;
     if (!scatter?._zoom || !allLabels.length) return;
@@ -255,17 +458,14 @@ function App() {
         );
         if (!tooClose) accepted.push(lb);
       }
-
       setLabelPositions(accepted);
-    } catch (e) { /* scales not ready */ }
+    } catch (e) { }
   }, [allLabels]);
 
-  // ── Initialize DeepScatter ──
   const initScatterplot = useCallback(() => {
     if (scatterRef.current) {
-      try { scatterRef.current.destroy(); } catch (e) { /* ok */ }
+      try { scatterRef.current.destroy(); } catch (e) { }
     }
-
     const el = document.getElementById('deepscatter');
     if (!el) return;
 
@@ -291,9 +491,10 @@ function App() {
 
     const n = clusterMeta.length || 1;
     const c = colors.length ? colors : generateColors(n);
+    const prefix = `${instId}_${pipelineMode}`;
 
     scatterplot.plotAPI({
-      source_url: 'http://localhost:8000/data/tiles',
+      source_url: `http://localhost:8000/data/tiles/${prefix}`,
       max_points: 1000000,
       point_size: 3,
       alpha: 55,
@@ -317,18 +518,16 @@ function App() {
           updateLabelPositions();
           clearInterval(poll);
         }
-      } catch (e) { /* wait */ }
+      } catch (e) { }
     }, 300);
-
     return () => clearInterval(poll);
-  }, [clusterMeta, colors, updateLabelPositions]);
+  }, [clusterMeta, colors, updateLabelPositions, instId, pipelineMode]);
 
-  // Re-init DeepScatter when view changes to atlas or compare
   useEffect(() => {
+    if (appState !== 'atlas') return;
     if (!clusterMeta.length) return;
-    if (activeView === 'som') return; // SOM doesn't need DeepScatter
+    if (activeView === 'som') return;
 
-    // Small delay to let DOM render the #deepscatter div
     const timer = setTimeout(() => {
       const cleanup = initScatterplot();
       return () => { if (cleanup) cleanup(); };
@@ -349,9 +548,8 @@ function App() {
         try { scatterRef.current.destroy(); } catch (e) {}
       }
     };
-  }, [initScatterplot, clusterMeta, activeView]);
+  }, [initScatterplot, clusterMeta, activeView, appState]);
 
-  // ── Click cluster to highlight ──
   const handleClusterClick = useCallback((clusterId) => {
     const scatter = scatterRef.current;
     if (!scatter) return;
@@ -377,11 +575,7 @@ function App() {
     }
   }, [activeCluster, colors, clusterMeta]);
 
-  const totalDocs = clusterMeta.reduce((s, c) => s + c.count, 0);
-
-  /* ── View switching ── */
   const handleViewChange = (view) => {
-    // Destroy scatter when leaving atlas/compare
     if (view === 'som' && scatterRef.current?.destroy) {
       try { scatterRef.current.destroy(); } catch (e) {}
       scatterRef.current = null;
@@ -389,47 +583,68 @@ function App() {
     setActiveView(view);
   };
 
+  // ── Render Setup Flow ──
+
+  if (appState === 'search') {
+    return (
+      <div className="setup-wrapper">
+        <SearchBar onSelect={handleSelectInst} />
+      </div>
+    );
+  }
+
+  if (appState === 'confirm') {
+    return (
+      <div className="setup-wrapper">
+        <ConfirmationCard 
+          inst={selectedInst} 
+          checkStatus={checkStatus}
+          onConfirm={handleConfirm}
+          onCancel={() => setAppState('search')}
+        />
+      </div>
+    );
+  }
+
+  if (appState === 'pipeline') {
+    return (
+      <div className="setup-wrapper">
+        <PipelineProgress 
+          instName={selectedInst?.display_name} 
+          onAbort={handleAbort}
+          onComplete={() => {
+            loadAtlasData(instId, pipelineMode);
+            setAppState('atlas');
+          }}
+        />
+      </div>
+    );
+  }
+
+  // ── Render Atlas App ──
+
+  const totalDocs = clusterMeta.reduce((s, c) => s + c.count, 0);
+
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative', backgroundColor: '#0a0a0f' }}>
-
-      {/* ── Header ── */}
       <header className="atlas-header">
-        <div className="logo">◆ Semantic Research Atlas</div>
+        <div className="logo" onClick={() => setAppState('search')} style={{cursor: 'pointer'}} title="Back to Search">
+          ◆ Semantic Research Atlas
+        </div>
         <div className="header-nav">
-          <button
-            className={`nav-btn ${activeView === 'atlas' ? 'active' : ''}`}
-            onClick={() => handleViewChange('atlas')}
-          >
-            🗺 Atlas
-          </button>
-          <button
-            className={`nav-btn ${activeView === 'som' ? 'active' : ''}`}
-            onClick={() => handleViewChange('som')}
-          >
-            🧠 SOM
-          </button>
-          <button
-            className={`nav-btn ${activeView === 'compare' ? 'active' : ''}`}
-            onClick={() => handleViewChange('compare')}
-          >
-            ⚡ Compare
-          </button>
+          <button className={`nav-btn ${activeView === 'atlas' ? 'active' : ''}`} onClick={() => handleViewChange('atlas')}>🗺 Atlas</button>
+          <button className={`nav-btn ${activeView === 'som' ? 'active' : ''}`} onClick={() => handleViewChange('som')}>🧠 SOM</button>
+          <button className={`nav-btn ${activeView === 'compare' ? 'active' : ''}`} onClick={() => handleViewChange('compare')}>⚡ Compare</button>
         </div>
         <div className="map-name">
-          <span>UNAM Research Map</span> · {totalDocs.toLocaleString()} documents
+          <span>{selectedInst?.display_name || 'Universal Atlas'}</span> · {totalDocs.toLocaleString()} documents
         </div>
       </header>
 
-      {/* ── Sidebar Toggle ── */}
-      <button
-        className="sidebar-toggle"
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        style={{ left: sidebarOpen ? '352px' : '12px' }}
-      >
+      <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} style={{ left: sidebarOpen ? '352px' : '12px' }}>
         {sidebarOpen ? '◂' : '▸'}
       </button>
 
-      {/* ── Sidebar ── */}
       <aside className={`atlas-sidebar ${sidebarOpen ? '' : 'collapsed'}`}>
         {activeCluster !== null && (
           <div className="active-filter">
@@ -494,9 +709,7 @@ function App() {
           ) : (
             <div className="empty-state">
               <div className="icon">🔍</div>
-              {activeView === 'som'
-                ? 'Hover over a SOM cell to see details.'
-                : 'Hover over a point to see details.'}
+              {activeView === 'som' ? 'Hover over a SOM cell to see details.' : 'Hover over a point to see details.'}
               <br/>Click a topic label to filter.
             </div>
           )}
@@ -520,29 +733,15 @@ function App() {
         </div>
       </aside>
 
-      {/* ══════════════════════════════════════════════════ */}
-      {/* ── VIEW: Atlas (DeepScatter) ── */}
-      {/* ══════════════════════════════════════════════════ */}
       {activeView === 'atlas' && (
         <>
           <div id="deepscatter" />
-
-          {/* Floating Topic Labels */}
           <div className="topic-labels-layer">
             {labelPositions.map((lb, i) => (
               <div
                 key={`${lb.cluster}-${lb.level}-${i}`}
-                className={[
-                  'topic-label',
-                  `topic-label--${lb.size}`,
-                  activeCluster === lb.cluster ? 'active' : '',
-                  activeCluster !== null && activeCluster !== lb.cluster ? 'dimmed' : '',
-                ].join(' ')}
-                style={{
-                  left: lb.screenX,
-                  top: lb.screenY,
-                  '--label-color': colors[lb.cluster] || '#fff',
-                }}
+                className={['topic-label', `topic-label--${lb.size}`, activeCluster === lb.cluster ? 'active' : '', activeCluster !== null && activeCluster !== lb.cluster ? 'dimmed' : ''].join(' ')}
+                style={{ left: lb.screenX, top: lb.screenY, '--label-color': colors[lb.cluster] || '#fff' }}
                 onClick={(e) => { e.stopPropagation(); handleClusterClick(lb.cluster); }}
               >
                 {lb.text}
@@ -552,14 +751,11 @@ function App() {
         </>
       )}
 
-      {/* ══════════════════════════════════════════════════ */}
-      {/* ── VIEW: SOM (U-Matrix Heatmap) ── */}
-      {/* ══════════════════════════════════════════════════ */}
       {activeView === 'som' && (
         <div className="som-view">
           <div className="som-view-header">
             <h2>Self-Organizing Map · U-Matrix</h2>
-            <p>Topographic visualization of the embedding space. Colors represent boundary distances between neurons — bright regions are cluster boundaries, dark regions are homogeneous areas.</p>
+            <p>Topographic visualization of the embedding space. Colors represent boundary distances between neurons.</p>
           </div>
           {somData ? (
             <SomHeatmap
@@ -571,25 +767,14 @@ function App() {
               height={Math.min(window.innerHeight - 160, 600)}
             />
           ) : (
-            <div className="som-loading">
-              <div className="empty-state">
-                <div className="icon">🧠</div>
-                SOM data not available.<br/>
-                Run: <code>python scripts/04_som.py --config config/default.yaml</code>
-              </div>
-            </div>
+            <div className="som-loading"><div className="empty-state">SOM data not available.</div></div>
           )}
           <div className="som-colorbar">
-            <span>Low distance</span>
-            <div className="som-gradient" />
-            <span>High distance</span>
+            <span>Low distance</span><div className="som-gradient" /><span>High distance</span>
           </div>
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════════ */}
-      {/* ── VIEW: Compare (Atlas + SOM side by side) ── */}
-      {/* ══════════════════════════════════════════════════ */}
       {activeView === 'compare' && (
         <div className="compare-view">
           <div className="compare-panel">
@@ -599,16 +784,8 @@ function App() {
               {labelPositions.map((lb, i) => (
                 <div
                   key={`cmp-${lb.cluster}-${lb.level}-${i}`}
-                  className={[
-                    'topic-label topic-label--small',
-                    activeCluster === lb.cluster ? 'active' : '',
-                    activeCluster !== null && activeCluster !== lb.cluster ? 'dimmed' : '',
-                  ].join(' ')}
-                  style={{
-                    left: lb.screenX,
-                    top: lb.screenY,
-                    '--label-color': colors[lb.cluster] || '#fff',
-                  }}
+                  className={['topic-label topic-label--small', activeCluster === lb.cluster ? 'active' : '', activeCluster !== null && activeCluster !== lb.cluster ? 'dimmed' : ''].join(' ')}
+                  style={{ left: lb.screenX, top: lb.screenY, '--label-color': colors[lb.cluster] || '#fff' }}
                   onClick={(e) => { e.stopPropagation(); handleClusterClick(lb.cluster); }}
                 >
                   {lb.text}
@@ -629,28 +806,15 @@ function App() {
                 height={window.innerHeight - 120}
               />
             ) : (
-              <div className="som-loading">
-                <div className="empty-state">
-                  <div className="icon">🧠</div>
-                  SOM data not available.
-                </div>
-              </div>
+              <div className="som-loading"><div className="empty-state">SOM data not available.</div></div>
             )}
           </div>
         </div>
       )}
 
-      {/* ── Bottom Stats ── */}
       <div className="atlas-stats">
-        <div className="stat-chip">
-          <span className="stat-value">{totalDocs.toLocaleString()}</span> documents
-        </div>
-        <div className="stat-chip">
-          <span className="stat-value">{clusterMeta.length}</span> topics
-        </div>
-        <div className="stat-chip">
-          <span className="stat-value">3</span> sources
-        </div>
+        <div className="stat-chip"><span className="stat-value">{totalDocs.toLocaleString()}</span> documents</div>
+        <div className="stat-chip"><span className="stat-value">{clusterMeta.length}</span> topics</div>
       </div>
     </div>
   );
