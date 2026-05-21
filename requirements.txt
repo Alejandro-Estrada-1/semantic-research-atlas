@@ -6,10 +6,11 @@ scikit-learn
 umap-learn
 hdbscan
 
-# Embeddings (CTranslate2 INT8 — no PyTorch needed)
+# Embeddings (CTranslate2 INT8)
 ctranslate2
 transformers
 tokenizers
+torch
 
 # SOM
 MiniSom
