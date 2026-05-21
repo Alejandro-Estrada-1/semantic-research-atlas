@@ -34,14 +34,16 @@ This project transforms raw metadata from millions of academic papers into a ful
 ## Installation
 
 ### 1. Prerequisites
-- Python 3.10+
+- Python 3.9+
 - Node.js 18+
 
 ### 2. Python Backend (Virtual Environment)
 ```bash
 python -m venv venv
 source venv/bin/activate
+python -m pip install --upgrade pip
 pip install -r requirements.txt
+pip install -e .
 ```
 
 > [!IMPORTANT]
@@ -62,7 +64,7 @@ OPENALEX_API_KEY=your_personal_key_here
 ### 4. Node Frontend
 ```bash
 cd frontend
-npm install
+npm install --legacy-peer-deps
 cd ..
 ```
 
