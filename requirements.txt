@@ -1,0 +1,33 @@
+# Core
+numpy
+pandas
+pyarrow
+scikit-learn
+umap-learn
+hdbscan
+
+# Embeddings (CTranslate2 INT8 — no PyTorch needed)
+ctranslate2
+transformers
+tokenizers
+
+# SOM
+MiniSom
+
+# Ingestion
+requests
+beautifulsoup4
+lxml
+
+# Server
+flask
+flask-cors
+
+# Utils
+tqdm
+pyyaml
+python-dotenv
+
+# Database & WebGL
+duckdb
+quadfeather

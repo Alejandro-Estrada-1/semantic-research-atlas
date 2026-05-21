@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment variables
+.env
+.env.*
+
+# ML / embeddings / indexes
+*.npy
+*.npz
+*.faiss
+*.h5
+*.pt
+*.onnx
+*.joblib
+
+# Data artifacts
+*.parquet
+
+# Project data folders
+data/raw/
+data/processed/
+data/index/
+data/checkpoints/
+data/tmp/
+data/models/
+data/tiles/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+
+# Editors
+.idea/
+.vscode/
+
+# Pytest / tooling
+.pytest_cache/
+.mypy_cache/
+ruff_cache/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Frontend (Vite/React)
+frontend/node_modules/
+frontend/dist/
+frontend/.eslintcache

@@ -1,0 +1,1 @@
+"""Semantic Research Atlas package."""
